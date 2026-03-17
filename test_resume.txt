@@ -1,0 +1,29 @@
+John Smith
+Email: john.smith@email.com
+Phone: +91 98765 43210
+
+SUMMARY
+Experienced software engineer with 5 years building web applications.
+Strong background in Python, APIs, and cloud infrastructure.
+
+SKILLS
+Python, JavaScript, SQL, REST APIs, AWS, Docker, Git, FastAPI, React
+
+EXPERIENCE
+Senior Software Engineer — TechCorp India, Mumbai
+Jan 2022 — Present
+- Built microservices architecture serving 2 million users
+- Reduced API response time by 40% through caching optimization
+- Led team of 4 engineers on payment integration project
+
+Software Engineer — StartupXYZ, Bangalore
+Jun 2019 — Dec 2021
+- Developed customer dashboard using React and FastAPI
+- Implemented automated testing reducing bugs by 60%
+- Worked directly with product team on feature prioritization
+
+EDUCATION
+B.Tech Computer Science — IIT Delhi, 2019
+
+CERTIFICATIONS
+AWS Solutions Architect Associate, 2023
