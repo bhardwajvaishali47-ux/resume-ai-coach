@@ -138,3 +138,24 @@ CLAUDE (the actual AI model)
 - We use claude-sonnet-4-6 specifically
 Stack order:
 Our Python code → LangChain → Anthropic SDK → Claude API
+
+# Day 1 Learning - First API call 
+### What I built 
+day1_raw_api.py - a pythin file that calls Claude directly using Anthropic SDK and prints the response in terminal 
+
+### What I learned 
+- import os - reads environmental variables from Mac's memory 
+- load_dotenv() - load .env file into memory at runtime 
+- os.getenv() - retireves the API key safely 
+- anthropic.Anthropic(api_key=) - creates the client connection 
+- client.messages.create() - sends the actual request to claude 
+- message.content[0].text - extract Claude's text response 
+
+### Debugging I did 
+- Fixed space after = sign in .env file (API key )
+- Created fresh API key when old one was not working 
+- used cat.env command to verify file contents 
+
+### Key Insight
+The code never runs claude locally . My mac sends text to Anthropic's servers , Claude thinks there, response come back. My Mac is just a messenger 
+

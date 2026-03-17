@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 import anthropic
 
-load_dotenv()
+load_dotenv() #calling the api url key 
 
 api_key = os.getenv("ANTHROPIC_API_KEY")
 
