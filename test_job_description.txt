@@ -1,0 +1,30 @@
+Senior Software Engineer — FinTech Product
+Company: PayFast India, Bangalore
+
+We are looking for a Senior Software Engineer to join our 
+growing payments infrastructure team.
+
+
+Requirements:
+- 4+ years of software engineering experience
+- Strong Python and backend development skills
+- Experience with REST APIs and microservices architecture
+- Knowledge of SQL and database design
+- AWS or cloud infrastructure experience
+- Experience with Docker and containerisation
+- Familiarity with CI/CD pipelines
+- Knowledge of Kubernetes is a plus
+- Experience in fintech or payments domain preferred
+
+
+Responsibilities:
+- Build and maintain payment processing microservices
+- Design scalable APIs serving millions of transactions
+- Work closely with product and data teams
+- Lead technical discussions and mentor junior engineers
+- Contribute to system architecture decisions
+
+Nice to have:
+- Terraform or infrastructure as code experience
+- Redis or caching layer experience
+- Experience with high availability systems
