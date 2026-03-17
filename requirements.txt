@@ -1,0 +1,8 @@
+anthropic
+langchain
+langchain-anthropic
+langchain-community
+langchain-core
+python-dotenv
+pdfplumber
+streamlit
