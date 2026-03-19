@@ -1,0 +1,32 @@
+Senior AI Product Manager
+Company : Razorpay , Bangalore
+
+We are looking for a Senior AI Product Manager to lead our AI-powered  financial products team.
+
+Requirements:
+- 7+ years of product management experience
+- Experience with AI/ML product development
+- Strong understanding of LLMs and generative AI
+- Experience with data driven product decisions
+- Proven track record of shipping enterprise products
+- Experience with agile and scrum methodologies
+- Strong stakeholder management skills
+- Experiecne with API driven products
+- Knowledge of cloud platforms (GCP, AWZ, or Azure)
+- Experience defining KPIs and success metrics
+
+Responsibilities:
+- Define and own the AI  product roadmap
+- Work with engineering and data science teams
+- Lead product discovery for AI features
+- Define success metrics for AI products 
+- Communicate product vision to stakeholders
+- Write detailed PRDs for product features 
+- Manage product backlog and sprint planning 
+
+
+Nice to Have :
+- Experience with RAG systems
+- Knowledge of vector databases
+- Experience with finctech products
+- Google Cloud Certification 
