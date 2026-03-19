@@ -796,3 +796,265 @@ Abstraction          → one function hides all complexity
 Tool pattern         → @tool decorator for agent use
 Semantic matching    → raw text passed to matcher not JSON
                        (preserves linguistic context for Claude)
+
+
+## Day 5- Streamlit UI
+### File : app.py
+
+### WHY THIS FILE EXIST
+The backend pipeline was complete aftewr day 4
+But users cannot run python scripts. They need a web interface - a real app in a browser. app.py is that interface. it connects everything the user sees to everything the backedn does.
+
+### WHAT IS STREAMLIT
+Streamlit is a python library that turns python scripts  into web applications without writing HTML, CSS or javascript. You write python. Steamlit renders a real web page . One line of python = a file uploader, button, chart , etc
+
+Why Streamlit for this project:
+- Already know Python — no new language needed
+- File upload built in — perfect for PDF resumes
+- Runs locally during development
+- Deploys to cloud in minutes (free)
+- Industry standard for AI/ML demos and prototypes
+
+### THE STREAMLIT EXECUTION MODEL — CRITICAL CONCEPT
+Regular Python script:
+Runs top to bottom → finishes → done
+
+Streamlit app:
+Runs → browser opens → waits
+User interacts (clicks, uploads, types)
+→ ENTIRE SCRIPT RERUNS from top to bottom
+→ waits again
+→ user interacts again
+→ ENTIRE SCRIPT RERUNS again
+→ repeats forever
+
+Every single interaction triggers a full rerun.
+This is called the Streamlit execution model.
+
+Problem this creates:
+If user clicks Analyse and results are calculated,
+then user scrolls — script reruns — results disappear.
+
+Solution: st.session_state
+
+
+### ST.SESSION_STATE — HOW RESULTS SURVIVE RERUNS
+st.session_state is a dictionary that persists across reruns.
+Unlike regular variables which reset on every rerun,
+session_state values stay until the browser tab is closed.
+
+Store a result:
+st.session_state["result"] = analysis_result
+st.session_state["analysis_done"] = True
+
+Read it back on next rerun:
+if st.session_state.get("analysis_done"):
+    result = st.session_state["result"]
+    display(result)
+
+Think of it as a sticky note on a whiteboard.
+Even when the whiteboard gets wiped (script reruns),
+the sticky note stays.
+
+Used in our app to store:
+- analysis_done: True/False flag
+- result: the complete pipeline output dictionary
+
+### TEMPFILE — BRIDGING MEMORY AND DISK
+This is one of the trickiest concepts in the UI.
+
+The problem:
+When user uploads PDF, Streamlit holds it in memory.
+There is no file path — just bytes in RAM.
+But extract_text_from_pdf() needs a real file path.
+pdfplumber cannot open a memory object.
+
+The solution: tempfile library (built into Python)
+
+How it works:
+1. User uploads PDF → Streamlit holds bytes in memory
+2. tempfile.NamedTemporaryFile() creates a real file on disk
+3. tmp_file.write(uploaded_file.getvalue()) writes bytes to disk
+4. tmp_path = tmp_file.name gives us the real file path
+5. analyze_resume(tmp_path, ...) uses that path
+6. os.unlink(tmp_path) deletes the temporary file
+
+
+delete=False means the file stays on disk after the
+with block closes — needed because analyze_resume()
+reads it after the with block ends.
+
+os.unlink(tmp_path) manually deletes it after use.
+Always clean up temporary files.
+
+### THE FIVE STREAMLIT COMPONENTS USED
+
+st.set_page_config()
+Must be the VERY FIRST Streamlit call in the file.
+Sets browser tab title, icon, and layout.
+layout="wide" uses full browser width.
+
+st.columns(2)
+Splits the page into side by side sections.
+col1, col2 = st.columns(2)
+with col1: — everything here goes in left column
+with col2: — everything here goes in right column
+
+st.file_uploader()
+Creates drag and drop file upload area.
+type=["pdf"] restricts to PDF files only.
+Returns uploaded file object or None if empty.
+
+st.text_area()
+Multi-line text input box.
+height=300 sets box height in pixels.
+placeholder shows grey hint text when empty.
+
+st.button()
+Creates clickable button.
+Returns True when clicked, False otherwise.
+type="primary" makes it blue/prominent.
+use_container_width=True stretches to full width.
+
+st.spinner()
+Shows animated loading indicator.
+Used during the 20-30 second analysis wait.
+Disappears automatically when code inside finishes.
+Critical for user experience — without it app looks frozen.
+
+st.progress()
+Visual progress bar.
+Takes value between 0 and 1.
+score / 100 converts 0-100 score to 0-1 range.
+
+st.success() / st.warning() / st.error()
+Coloured message boxes — green, yellow, red.
+Used for colour coded feedback based on match score.
+Above 75% = green success
+50-75% = yellow warning
+Below 50% = red error
+
+st.expander()
+Collapsible section — collapsed by default.
+User clicks to expand and see content inside.
+Used for raw JSON data — available but not intrusive.
+
+st.json()
+Displays Python dictionary as formatted JSON.
+Collapsible and searchable in the browser.
+
+---
+
+### INPUT VALIDATION — WHY IT MATTERS
+Before running expensive API calls, always validate inputs.
+
+if uploaded_file is None:
+    st.warning("Please upload your resume PDF first.")
+elif not job_description.strip():
+    st.warning("Please paste a job description first.")
+
+Why:
+- Prevents API calls with empty data
+- Saves API credits
+- Gives user clear guidance
+- Professional user experience
+- Never trust user input — always validate
+
+This is a fundamental product development principle.
+
+---
+
+### THE COMPLETE FLOW IN APP.PY
+
+User opens browser at localhost:8501
+        ↓
+Script runs top to bottom — UI renders
+        ↓
+User uploads PDF + pastes JD + clicks Analyse
+        ↓
+Script reruns — button returns True
+        ↓
+Validation checks pass
+        ↓
+st.spinner shows loading message
+        ↓
+tempfile saves PDF to disk temporarily
+        ↓
+analyze_resume(tmp_path, job_description) runs
+        ↓
+PDF reading → parsing → matching (20-30 seconds)
+        ↓
+result stored in st.session_state
+        ↓
+os.unlink deletes temporary file
+        ↓
+Script reruns — session_state has result
+        ↓
+Results section renders:
+- Match score + progress bar
+- Colour coded feedback
+- Matched skills (green ticks)
+- Missing skills (red crosses)
+- Strengths (stars)
+- Areas to improve (warnings)
+- Recommendation (blue box)
+- Collapsible parsed resume JSON
+
+---
+
+### WHAT WAS TESTED TODAY
+Tested app.py with real resume:
+File: Vaishali_Bhardwaj_ProductManager_AI.pdf
+JD: Senior PM AI/ML at Meesho
+
+Results displayed correctly:
+- Match score: 72% with progress bar
+- 12 matched skills shown with green ticks
+- 7 missing skills shown with red crosses
+- 3 strengths with star icons
+- 3 areas to improve with warning icons
+- Personalised recommendation in blue box
+- Full parsed resume in collapsible section
+
+---
+
+### GENAI CONCEPTS DEMONSTRATED IN UI
+The UI makes GenAI concepts visible to users:
+
+Semantic matching → shown as specific matched skills
+  not just keywords but meaning-based connections
+
+Structured output → parsed resume displayed as JSON
+  shows Claude extracted clean structured data
+
+Chain of thought → recommendation shows reasoning
+  not just a score but WHY and WHAT TO DO
+
+LLM as expert → recommendation reads like a recruiter
+  not generic advice but specific to this resume and JD
+
+---
+
+### DEBUGGING CHECKLIST FOR APP.PY
+
+If app does not start:
+□ Check (venv_ai) is active in terminal
+□ Run: streamlit run app.py
+□ Check port 8501 is not already in use
+
+If file upload does not work:
+□ Check uploaded_file is not None before processing
+□ Check tempfile writes correctly to disk
+□ Check os.unlink runs after analysis completes
+
+If results disappear after clicking:
+□ Check st.session_state stores result correctly
+□ Check session_state keys match exactly everywhere
+
+If analysis fails silently:
+□ Check "error" key in result dictionary
+□ Add print statements to track where failure occurs
+
+If spinner never disappears:
+□ Check for errors inside the with st.spinner block
+□ Any exception inside stops the spinner incorrectly
