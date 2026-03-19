@@ -573,3 +573,226 @@ If API error:
 □ Check .env file: ANTHROPIC_API_KEY=sk-ant-... no spaces
 □ Check credits at console.anthropic.com
 □ Check model name: "claude-sonnet-4-6"
+
+## Day 4- PDF Reader Tool and Complete Pipeline
+### Files : tools/pdf_reader.py and pipeline.py
+
+### WHY THESE FILES EXIST
+Until Day 3, all chains worked with plain text files.
+Real users upload PDF files. Day 4 solves this.
+
+pdf_reader.py — reads any PDF and returns clean text
+pipeline.py — connects all three components into one flow
+
+
+### FILE 1: tools/pdf_reader.py
+URPOSE:
+Takes a PDF file path as input.
+Returns clean extracted text as output.
+Every other part of the app depends on this working correctly.
+
+THREE FUNCTIONS INSIDE:
+
+1. clean_text(text: str) -> str
+   Fixes two problems that appear in extracted PDF text:
+   
+   Problem 1: Font encoding artifacts
+   Some PDFs use custom bullet symbols.
+   pdfplumber cannot decode them and writes (cid:127) instead.
+   clean_text replaces every (cid:xxx) with a proper bullet •
+   
+   Problem 2: Irregular spacing
+   PDFs sometimes have multiple spaces or extra newlines.
+   clean_text replaces any sequence of whitespace with one space.
+   
+   Library used: re (regular expressions)
+   re is built into Python — no installation needed.
+   re.sub(pattern, replacement, text) finds and replaces patterns.
+   
+   This is called defensive cleaning — fixing known problems
+   before they cause issues downstream.
+
+  2. extract_text_from_pdf(file_path: str) -> str
+   The main working function.
+   Opens PDF with pdfplumber.
+   Loops through every page.
+   Extracts text from each page.
+   Calls clean_text() to fix encoding issues.
+   Returns cleaned text string.
+   
+   Error handling:
+   If extracted text is less than 100 characters,
+   the PDF is likely image-based (scanned document).
+   Returns an ERROR: string instead of crashing.
+   This is called defensive programming.
+   
+   TWO TYPES OF PDFs EXIST IN THE REAL WORLD:
+   Type 1 — Text-based: created from Word, Google Docs, Pages
+            Text is stored as characters. pdfplumber reads it. 
+   Type 2 — Image-based: scanned paper documents
+            Text is a photo. pdfplumber sees nothing. 
+            Our error handling catches this gracefully.
+
+3. read_pdf(file_path: str) -> str  — decorated with @tool
+   LangChain tool version of the same function.
+   The @tool decorator registers it with LangChain.
+   The AI agent will call this in Week 2 when it needs to read a PDF.
+   Internally just calls extract_text_from_pdf().
+   
+   WHY TWO VERSIONS OF THE SAME FUNCTION:
+   extract_text_from_pdf = direct Python call (used in pipeline.py)
+   read_pdf with @tool = agent call (used by LangChain agent)
+   Having both avoids issues with @tool decorator machinery
+   when calling the function directly from Python code.
+
+
+DEBUGGING CHECKLIST:
+□ If output is empty: run cat yourfile.pdf won't work — use
+  python tools/pdf_reader.py yourfile.pdf to test directly
+□ If (cid:127) appears in output: clean_text() is not running
+  check that clean_text() is called before returning
+□ If ERROR appears: PDF is image-based or corrupted
+  ask user to export from Word or Google Docs instead
+□ If pdfplumber import fails: run pip install pdfplumber
+
+
+### FILE 2: pipeline.py
+
+PURPOSE:
+Master orchestration file.
+Connects pdf_reader, resume_parser, jd_matcher into one flow.
+Single function call runs the entire analysis.
+
+CONCEPT — WHAT IS AN ORCHESTRATION LAYER:
+Individual components (pdf_reader, parser, matcher) each
+do one job independently. They do not know about each other.
+pipeline.py coordinates them — tells each one what to do
+and passes results from one to the next.
+This is called an orchestration layer.
+Same concept used in production systems everywhere.
+
+THE FLOW:
+PDF file path
+      ↓
+extract_text_from_pdf() — tools/pdf_reader.py
+      ↓
+Plain text string
+      ↓
+      ├──→ parse_resume() — chains/resume_parser.py
+      │         ↓
+      │    Structured JSON dictionary
+      │
+      └──→ match_resume_to_job() — chains/jd_matcher.py
+                ↓
+           Match analysis dictionary
+
+Both results returned together in one dictionary.
+
+THE FUNCTION:
+def analyze_resume(pdf_path: str, job_description: str) -> dict
+
+Input 1: pdf_path — file path to the PDF on disk
+Input 2: job_description — job description as plain text string
+Output: dictionary with two keys:
+        "parsed_resume" — structured resume data
+        "match_result"  — score, gaps, strengths, recommendation
+
+WHY ONE MASTER FUNCTION:
+When Streamlit UI is built (Day 5), the entire UI calls
+this one function when user clicks Analyse button.
+The UI does not need to know about chains or tools.
+It calls analyze_resume() and gets everything back.
+This is abstraction — hiding complexity behind a simple interface.
+
+ERROR HANDLING IN PIPELINE:
+if resume_text.startswith("ERROR"):
+    return {"error": resume_text}
+
+If PDF reading fails, pipeline stops immediately.
+Returns error dictionary instead of crashing.
+Steps 2 and 3 never run if Step 1 fails.
+This is called fail-fast — detect problems early and stop cleanly.
+
+KEY LESSON — INDENTATION BUG:
+if __name__ == "__main__": must be at ZERO indentation.
+If it is indented inside the function, it never runs.
+Python uses indentation to determine which block code belongs to.
+The function ends at the return statement.
+Everything after return at same indentation is unreachable.
+
+VARIABLE NAMING LESSON:
+Never name a variable the same as the function you imported.
+Wrong: parse_resume = parse_resume(text)  ← overwrites function
+Right: parsed_resume = parse_resume(text) ← different name
+After the wrong version, calling parse_resume() again crashes
+because Python finds the variable, not the function.
+
+DICTIONARY KEY CONSISTENCY:
+Return key names must match everywhere in your code.
+Wrong: return {"matched_result": result}
+Right: return {"match_result": result}
+One letter difference causes KeyError when accessing result.
+
+---
+
+### NEW PYTHON CONCEPTS LEARNED TODAY
+
+tempfile (used in Day 5 — documented now for reference):
+Built-in Python library.
+Creates temporary files on disk.
+Needed because Streamlit holds uploaded files in memory
+but pdfplumber needs a real file path to open.
+tempfile bridges this gap.
+
+regular expressions (re library):
+Built-in Python library.
+re.sub(pattern, replacement, text) finds and replaces patterns.
+Used in clean_text() to fix PDF encoding artifacts.
+Think of it as a powerful find-and-replace.
+
+@tool decorator:
+LangChain decorator that registers a function as an agent tool.
+The agent reads the function's docstring to decide when to call it.
+Clear, specific docstrings are critical for agent tool selection.
+
+.get() dictionary method:
+Safe way to access dictionary keys.
+parsed_resume.get('skills', [])
+Returns empty list [] if 'skills' key does not exist.
+Prevents KeyError crashes when Claude misses a field.
+
+f-strings:
+f"Found {len(skills)} skills"
+The f prefix makes {} into evaluated expressions.
+Whatever is inside {} gets calculated and inserted as text.
+
+---
+
+### WHAT WAS TESTED TODAY
+
+Tested pipeline.py with real resume:
+File: Vaishali_Bhardwaj_ProductManager_AI.pdf
+JD: Senior AI Product Manager at Razorpay
+
+Results:
+- 4083 characters extracted from PDF
+- 21 skills identified
+- 4 jobs found
+- Match score: 82%
+- 16 matched skills
+- 3 gaps: fintech experience, vector databases, startup pace
+- Recommendation: strong candidate, address fintech gap
+
+This confirmed the entire backend pipeline works correctly
+end to end with a real PDF and real job description.
+
+---
+
+### GENAI CONCEPTS IN THESE FILES
+
+Orchestration layer  → pipeline.py coordinates components
+Defensive programming → error handling at every step
+Abstraction          → one function hides all complexity
+Tool pattern         → @tool decorator for agent use
+Semantic matching    → raw text passed to matcher not JSON
+                       (preserves linguistic context for Claude)
