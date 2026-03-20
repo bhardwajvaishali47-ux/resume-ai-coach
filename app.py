@@ -5,6 +5,8 @@ from dotenv import load_dotenv
 from pipeline import analyze_resume
 from agent.career_coach import build_career_coach, chat_with_coach
 from chains.cover_letter import generate_cover_letter
+from tools.pdf_exporter import create_resume_pdf
+from tools.pdf_exporter import create_resume_pdf, create_analysis_report
 
 load_dotenv() # invoke API url key
 
@@ -166,6 +168,37 @@ if st.session_state.get("analysis_done") : #Checks if analysis has been complete
         st.subheader("Your Parsed Resume")
         with st.expander("Click to view full parsed resume data"): # st.expander->Creates a collapsible section. Collapsed by default. User clicks to expand. Used here for the raw JSON data — most users do not need to see it but technical users appreciate it being available.
             st.json(parsed) #st.json->Displays a Python dictionary as formatted, collapsible JSON in the browser. Beautiful out of the box.
+    
+    # button to export pdf formated resume
+        st.divider()
+        st.subheader("Download Your Analysis Report")
+        st.markdown("Download a complete PDF report with your match score, skills analysis, recommendation, and cover letter.")
+
+        if st.button("Download Analysis Report", type="secondary"):
+            with st.spinner("Generating your report..."):
+                cover_letter_text = st.session_state.get("cover_letter", "")
+                report_path = "analysis_report.pdf"
+                create_analysis_report(
+                    result["parsed_resume"],
+                    st.session_state["job_description"],
+                    result["match_result"],
+                    cover_letter_text,
+                    report_path
+                )
+                with open(report_path, "rb") as f:
+                    report_bytes = f.read()
+
+                name = result["parsed_resume"].get("name", "Candidate")
+                clean_name = name.replace(" ", "_")
+                file_name = f"{clean_name}_Analysis_Report.pdf"
+
+                st.download_button(
+                    label="Click here to download your report",
+                    data=report_bytes,
+                    file_name=file_name,
+                    mime="application/pdf"
+                )
+       
     
     
     # ADDING CHAT INTERFACE FOR THE APP 
