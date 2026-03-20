@@ -3,6 +3,7 @@ import tempfile
 import os
 from dotenv import load_dotenv
 from pipeline import analyze_resume
+from agent.career_coach import build_career_coach, chat_with_coach
 
 load_dotenv() # invoke API url key
 
@@ -36,7 +37,7 @@ analyse_button = st.button(
 #use_container_width=True ->Makes the button stretch to full width of the page. Looks more professional than a small button.
 
 
-if analyse_button : #Remember st.button() returns True when clicked. So this entire block runs only when the user clicks the button. If they have not clicked it, Python skips everything inside.
+if analyse_button and not st.session_state.get("analysis_done"): #Remember st.button() returns True when clicked. So this entire block runs only when the user clicks the button. If they have not clicked it, Python skips everything inside.
     
     #Before running the expensive API calls, check that the user has provided both inputs.
     #uploaded_file is None — Streamlit sets uploaded_file to None if no file has been uploaded yet.
@@ -76,10 +77,11 @@ if analyse_button : #Remember st.button() returns True when clicked. So this ent
         else:
             st.session_state["result"] = result
             st.session_state["analysis_done"] = True # a flag to know whether to show results section.
+            st.session_state["job_description"] = job_description
             
             
             
-    if st.session_state.get("analysis_done") : #Checks if analysis has been completed. .get() returns None if key does not exist — no crash. This block only shows after the user has clicked Analyse and results are stored.
+if st.session_state.get("analysis_done") : #Checks if analysis has been completed. .get() returns None if key does not exist — no crash. This block only shows after the user has clicked Analyse and results are stored.
         result = st.session_state["result"]
         parsed = result["parsed_resume"]
         match = result["match_result"]
@@ -140,3 +142,50 @@ if analyse_button : #Remember st.button() returns True when clicked. So this ent
         st.subheader("Your Parsed Resume")
         with st.expander("Click to view full parsed resume data"): # st.expander->Creates a collapsible section. Collapsed by default. User clicks to expand. Used here for the raw JSON data — most users do not need to see it but technical users appreciate it being available.
             st.json(parsed) #st.json->Displays a Python dictionary as formatted, collapsible JSON in the browser. Beautiful out of the box.
+    
+    
+    # ADDING CHAT INTERFACE FOR THE APP 
+if st.session_state.get("analysis_done"):
+        st.divider()
+        st.header("Chat with your AI career coach")
+        st.markdown("Ask anything about your resume, requests rewrites, or get specific advice.")
+        
+        if "agent" not in st.session_state:
+            result = st.session_state["result"]
+            agent, history  = build_career_coach(
+                result["parsed_resume"],
+                st.session_state["job_description"],
+                result["match_result"]
+            )
+            
+            st.session_state["agent"] = agent
+            st.session_state["history"] = history
+            st.session_state["messages"] = []
+            
+        for message in st.session_state["messages"]:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
+                
+        user_input = st.chat_input("Ask your career coach anything...")
+        
+        if user_input:
+            st.session_state["messages"].append({
+                "role" : "user",
+                "content" : user_input
+            })
+            
+            with st.chat_message("user"):
+                st.markdown(user_input)
+                
+            with st.chat_message("assistant"):
+                with st.spinner("Thinking..."):
+                 response = chat_with_coach(
+                    st.session_state["agent"], user_input
+                )
+                st.markdown(response)
+                
+            st.session_state["messages"].append({
+                "role" : "assistant",
+                "content" : response
+            })
+        
