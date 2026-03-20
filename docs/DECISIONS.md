@@ -1590,3 +1590,232 @@ If StrOutputParser not found:
 □ from langchain_core.output_parsers import StrOutputParser
 
 
+## Day 8 — PDF Export Features + Enhanced Resume Download
+### Files: tools/pdf_exporter.py, chains/bullet_extractor.py,
+### chains/resume_enhancer.py, app.py (updated)
+
+---
+
+### THREE NEW FILES CREATED
+
+1. tools/pdf_exporter.py
+   Two functions:
+   create_resume_pdf() — formats parsed resume as PDF
+   create_analysis_report() — formats match analysis as PDF
+
+2. chains/bullet_extractor.py
+   Extracts bullet points from conversational agent responses
+   Uses Claude to identify and clean bullet text
+   Returns a Python list of clean bullet strings
+
+3. chains/resume_enhancer.py
+   Scans chat history for rewritten bullets
+   Matches bullets to the correct job using word scoring
+   Replaces original bullets with improved ones
+   Returns enhanced resume dictionary
+
+---
+
+### WHAT REPORTLAB IS
+
+Python library for generating PDF files programmatically.
+You write Python code that places elements on a page.
+reportlab handles layout, fonts, colours, page breaks.
+
+Key concept — FLOWABLES:
+Elements that flow down the page one after another.
+You build a list called story and append flowables.
+doc.build(story) places them on the page in order.
+
+Five flowables used:
+Paragraph(text, style) — text block with formatting
+Spacer(width, height)  — invisible gap between elements
+HRFlowable(...)        — horizontal divider line
+SimpleDocTemplate      — the document itself
+
+ParagraphStyle:
+Named set of formatting rules.
+fontSize, fontName, textColor, alignment, spaceAfter.
+Define once, apply to any Paragraph.
+parent=styles["Normal"] inherits base settings.
+
+---
+
+### TWO PDF OUTPUTS
+
+OUTPUT 1 — Analysis Report
+Contains:
+- Title: AI Resume Analysis Report
+- Prepared for: candidate name
+- Role: first line of job description
+- Match score as large centred number (28pt font)
+- Colour coded verdict (green/amber/red)
+- Matched skills in green
+- Missing skills in red
+- Strengths numbered list
+- Gaps numbered list
+- Recommendation paragraph
+- Cover letter if generated (page 2)
+
+Why this is valuable:
+User gets a document they cannot get anywhere else.
+Printable, shareable, usable as application checklist.
+Cover letter included so entire application in one PDF.
+
+OUTPUT 2 — Enhanced Resume
+Contains:
+- Same structure as original resume
+- BUT with AI-improved bullet points replacing originals
+- Only the sections rewritten in chat are changed
+- Original sections preserved exactly
+
+Why this is valuable:
+User goes from old resume to tailored resume in one session.
+No manual copying. App does it automatically.
+Enhanced bullets are specific to the target job.
+
+---
+
+### HOW BULLET EXTRACTION WORKS
+
+Problem:
+Agent responses are conversational — mixed with
+explanations, tables, emojis, before/after examples.
+Cannot simply look for lines starting with bullet symbols.
+Need Claude to identify which lines are the actual bullets.
+
+Solution: bullet_extractor_chain
+Sends the full agent response to Claude.
+Asks: extract only the bullet points, return as JSON.
+Returns: {"bullets": ["bullet 1", "bullet 2", ...]}
+
+Why use Claude for extraction:
+Rule-based extraction fails on rich formatted text.
+Claude understands meaning — knows a bullet from an
+explanation even without consistent formatting symbols.
+
+---
+
+### HOW RESUME ENHANCEMENT WORKS
+
+enhance_resume_with_chat() steps:
+
+1. copy.deepcopy(parsed_resume)
+   Creates completely independent copy.
+   Changes to copy do not affect original.
+   Critical — we never modify the original resume.
+
+2. Filter assistant messages only
+   User messages never contain bullets.
+   Only scan Claude's responses.
+
+3. Quick signal check before API call
+   Check for: bullet symbols, "rewritten", "improved"
+   Skip messages without these signals.
+   Saves API credits — only call extractor when needed.
+
+4. Extract bullets from matching messages
+   Call extract_bullets_from_text() on signal messages.
+   Returns list of clean bullet strings.
+
+5. Find best matching job by word score
+   For each job in experience:
+   Count how many words from company+role appear in message.
+   Job with highest score gets the new bullets.
+   Example: message mentions "BT Group" and "Openreach"
+   → BT Group job gets highest score → bullets replaced.
+
+6. Mark job as enhanced
+   Add "enhanced": True flag to modified jobs.
+   Used by get_enhancement_summary() to report changes.
+
+---
+
+### THE DEEP COPY CONCEPT
+
+Shallow copy:
+enhanced = parsed_resume
+Both variables point to SAME object in memory.
+Change enhanced → changes parsed_resume too.
+Original is destroyed.
+
+Deep copy:
+enhanced = copy.deepcopy(parsed_resume)
+Creates completely new object with new nested objects.
+Change enhanced → parsed_resume unchanged.
+Original is preserved.
+
+Always use deep copy when modifying a dictionary
+that you want to keep the original version of.
+
+---
+
+### APP.PY STRUCTURE — FINAL CLEAN VERSION
+
+Four root-level blocks:
+
+Block 1: Button logic
+if analyse_button and not session_state("analysis_done"):
+    run analysis, save to session_state
+
+Block 2: Results section
+if session_state("analysis_done"):
+    show score, skills, recommendation
+    cover letter generator
+    analysis report download
+
+Block 3: Chat section
+if session_state("analysis_done"):
+    build agent if not exists
+    display chat history
+    handle new messages
+
+Block 4: Enhanced resume download
+if session_state("analysis_done"):
+    check for coaching responses in chat
+    generate enhanced resume
+    download button
+
+Key lesson:
+Results, chat, and download are all ROOT LEVEL blocks.
+None of them are nested inside the button block.
+This is why they persist across reruns.
+
+---
+
+### COMPLETE USER JOURNEY — V2
+
+Upload PDF resume
+        ↓
+Paste job description
+        ↓
+Click Analyse (20-30 seconds)
+        ↓
+See: match score, matched/missing skills,
+     strengths, gaps, recommendation
+        ↓
+Generate cover letter (optional)
+        ↓
+Download analysis report PDF (optional)
+        ↓
+Chat with AI career coach:
+- Ask about missing skills
+- Request bullet rewrites
+- Get specific advice
+        ↓
+Download enhanced resume PDF
+(with AI-improved bullets automatically applied)
+        ↓
+Apply for job with everything optimised
+
+---
+
+### GENAI CONCEPTS IN THESE FILES
+
+StrOutputParser     → plain text output for cover letter
+JsonOutputParser    → structured JSON for bullet extraction
+Deep copy           → safe dictionary manipulation
+Word scoring        → simple matching algorithm without ML
+Negative constraints→ telling Claude what NOT to write
+Structural prompting→ paragraph-by-paragraph instructions
+Context injection   → full analysis injected into every call
