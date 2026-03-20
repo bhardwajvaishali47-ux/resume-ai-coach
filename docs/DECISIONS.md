@@ -1184,3 +1184,66 @@ Multi-turn dialogue  → full history sent on every API call
 Persona prompting    → expert career coach with 15 years experience
 Behavioural rules    → 7 specific instructions shape every response
 Session persistence  → st.session_state keeps agent alive across reruns
+
+
+## LangSmith Observability — Added Day 7
+
+### What it is
+LangSmith is LangChain's observability platform.
+Every chain run, every API call, every token is tracked
+and visualised in a real-time dashboard.
+
+### What it shows
+- Every step of every chain execution
+- Exact prompt sent to Claude
+- Exact response received from Claude
+- Token count per call
+- Latency per step
+- Error tracking with full context
+
+### How it was set up
+Three environment variables added to .env:
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_PROJECT=resume-ai-coach
+LANGCHAIN_API_KEY=your_key
+
+No code changes needed.
+LangChain detects these variables automatically.
+
+### Why it matters for the product
+Observability is how you debug AI systems in production.
+When output quality drops, you open LangSmith and see
+exactly what prompt produced the bad output.
+When latency spikes, you see which step is slow.
+This is what real AI engineering teams use daily.
+
+### What you can see in the trace
+Left panel: chain breakdown
+  RunnableSequence
+    claude-sonnet-4-6 (time + tokens)
+    JsonOutputParser (time)
+
+Right panel:
+  Input tab: exact resume text sent to Claude
+  Output tab: exact structured JSON returned
+  Metadata tab: model, tokens, latency details
+
+### Interview talking point
+"I added LangSmith observability to my project.
+Every chain run is traced — I can see the exact prompt,
+response, token count, and latency for every API call.
+This is how production AI teams debug and monitor
+LLM applications. It also visually proves my app
+uses a real multi-step chain, not just a single API call."
+```
+
+Press `Cmd + S`.
+
+---
+
+## What LangSmith shows about your app architecture
+
+Look at what the trace revealed:
+```
+claude-sonnet-4-6: 13.36 seconds, 1.9K tokens
+JsonOutputParser:  0.00 seconds
