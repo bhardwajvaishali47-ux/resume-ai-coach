@@ -5,6 +5,7 @@ from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage , AIMessage, SystemMessage
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_community.chat_message_histories import ChatMessageHistory
+from vectorstore.embedder import retrieve_relevant_knowledge
 
 load_dotenv() # invoke API url 
 
@@ -107,10 +108,25 @@ def build_career_coach(parsed_resume : dict, job_description : str, match_result
 
 #This is the function your UI calls every time the user sends a message.
 def chat_with_coach(agent_with_memory, user_message : str) -> str:
-    """" Sends a message to a career coach and gets a response. Memory is handled automatically - full history sent every call  """
+    """" Sends a message to the career coach and gets a response.
+    Now enhanced with RAG — retrieves relevant knowledge
+    from knowledge base before answering. """
+    
+    relevant_knowledge = retrieve_relevant_knowledge(user_message)
+    
+    enhanced_message = f"""{user_message}
+    [RELEVANT EXPERTISE FROM KNOWLEDGE BASE]
+    {relevant_knowledge}
+     [END OF KNOWLEDGE BASE CONTEXT]
+
+    Please use the above knowledge base context to ground 
+    your advice in proven best practices."""  
+    
+    
+    
     
     response = agent_with_memory.invoke(
-        {"input" : user_message}, #Runs the full chain. Automatically reads history, builds complete prompt with system context + history + new message, sends to Claude, gets response, saves response to history.
+        {"input" : enhanced_message}, #Runs the full chain. Automatically reads history, builds complete prompt with system context + history + new message, sends to Claude, gets response, saves response to history.
         config = {"configurable" : {"session_id" : "career_session"}} #Tells the memory manager which session this message belongs to. We use a fixed string "career_session" because there is only one conversation per app session. In a multi-user production app, this would be a unique user ID.
     )
     
