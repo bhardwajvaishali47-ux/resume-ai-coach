@@ -1058,3 +1058,129 @@ If analysis fails silently:
 If spinner never disappears:
 □ Check for errors inside the with st.spinner block
 □ Any exception inside stops the spinner incorrectly
+
+
+## Day 6 - Conversational Chat Agent
+### Files : agent/career_coach.py and app.py (updated)
+
+### WHY THIS EXISTS
+The analysis result is a one-way output — user sees score and gaps.
+The chat agent turns it into a two-way conversation.
+User can ask follow up questions, request rewrites, get advice.
+No competitor has this. This is the differentiator.
+
+### THE KEY CONCEPT — HOW LLM MEMORY WORKS
+Claude has NO memory between API calls.
+Every call is completely fresh — Claude remembers nothing.
+
+So how do chatbots remember?
+Answer: you send the ENTIRE conversation history every call.
+
+Call 1: [User: "What are my gaps?"]
+Call 2: [User: "What are my gaps?", AI: "Missing PRD...", User: "How do I fix it?"]
+Call 3: [ALL previous messages PLUS new message]
+
+Every call includes full history.
+Claude reads it all and responds with complete context.
+LangChain's ChatMessageHistory automates this list management.
+
+### THREE FILES AND THEIR JOBS
+
+build_system_prompt() — creates the briefing document
+Takes parsed_resume, job_description, match_result as input.
+Builds a detailed f-string prompt containing:
+- Candidate's name, skills, experience, certifications
+- Full job description
+- Match score, matched skills, missing skills
+- Strengths and gaps from analysis
+- 7 behaviour rules for the career coach persona
+This is injected ONCE before conversation starts.
+Claude knows everything before user asks first question.
+
+build_career_coach() — assembles the agent
+Creates the prompt template with three parts:
+1. SystemMessage — the briefing document (injected once)
+2. MessagesPlaceholder — where conversation history goes
+3. Human message — the current user input
+
+Creates ChatMessageHistory — the in-memory message store.
+Wraps chain with RunnableWithMessageHistory — adds auto memory.
+Returns both agent and history objects.
+
+chat_with_coach() — sends one message
+Called every time user sends a message.
+Invokes the agent with the user's text.
+Memory is handled automatically.
+Returns Claude's response as plain string.
+
+
+### NEW LANGCHAIN CONCEPTS
+
+MessagesPlaceholder:
+Special placeholder in ChatPromptTemplate.
+LangChain fills it with full conversation history automatically.
+Without it — Claude forgets every previous message.
+With it — Claude sees entire conversation every call.
+
+RunnableWithMessageHistory:
+Modern LangChain way to add memory to any chain.
+Wraps your chain with automatic history management.
+Reads history before each call.
+Saves response to history after each call.
+You never manually manage the message list.
+
+ChatMessageHistory:
+Simple in-memory list of HumanMessage and AIMessage objects.
+Grows with every exchange.
+Gets inserted into MessagesPlaceholder on every call.
+
+lambda session_id: message_history:
+A tiny anonymous function.
+Returns the message history for any session_id.
+Allows multiple users to have separate histories in production.
+
+### THE CRITICAL STREAMLIT BUG WE FIXED
+
+Bug: Results and chat were indented INSIDE the button block.
+Effect: When user typed in chat, button was not clicked,
+entire block was skipped, results and chat disappeared.
+
+Wrong structure:
+if analyse_button:          ← button block
+    run analysis
+    if analysis_done:       ← INSIDE button block — wrong
+        show results
+    if analysis_done:       ← INSIDE button block — wrong
+        show chat
+
+Correct structure:
+if analyse_button:          ← button block only
+    run analysis
+
+if analysis_done:           ← ROOT level — always runs
+    show results
+
+if analysis_done:           ← ROOT level — always runs
+    show chat
+
+Lesson: In Streamlit, anything that should persist across
+reruns must be at root level — not inside button blocks.
+Only the analysis logic belongs inside the button block.
+
+### SESSION STATE KEYS USED
+
+analysis_done: True/False — whether analysis has run
+result: the complete pipeline output dictionary
+job_description: the job description text
+agent: the RunnableWithMessageHistory object
+history: the ChatMessageHistory object
+messages: list of {role, content} dicts for display
+
+### GENAI CONCEPTS IN THIS FILE
+
+Context injection     → system prompt contains full resume analysis
+Memory               → ChatMessageHistory + MessagesPlaceholder
+Multi-turn dialogue  → full history sent on every API call
+Persona prompting    → expert career coach with 15 years experience
+Behavioural rules    → 7 specific instructions shape every response
+Session persistence  → st.session_state keeps agent alive across reruns
