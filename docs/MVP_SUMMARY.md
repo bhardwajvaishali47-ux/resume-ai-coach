@@ -625,7 +625,7 @@ UI layers for clean architecture."
 ## Version 2 Planned Features (Roadmap)
 
 ⏳ RAG knowledge base with FAISS
-⏳ Live job listings via Adzuna API
+⏳ Live job listings via Adzuna APIs
 ⏳ Cover letter generator
 ⏳ PDF export of rewritten resume
 ⏳ LangSmith observability
