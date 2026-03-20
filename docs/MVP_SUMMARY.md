@@ -627,7 +627,7 @@ UI layers for clean architecture."
 ✅ LangSmith observability — chain tracing active
 ✅ RAG knowledge base — FAISS vector store with 12 expert documents
 ✅ Semantic retrieval — relevant knowledge injected on every question
-✅ Enhanced chat responses — grounded in expertise not just training data
+✅ Cover letter generator — personalised, gap-aware, company-specific
 
 ## Version 3 Planned Features (Roadmap)
 
