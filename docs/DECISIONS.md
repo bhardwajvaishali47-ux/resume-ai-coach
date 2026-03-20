@@ -1247,3 +1247,180 @@ Look at what the trace revealed:
 ```
 claude-sonnet-4-6: 13.36 seconds, 1.9K tokens
 JsonOutputParser:  0.00 seconds
+
+
+## Day 7 — LangSmith Observability + RAG Knowledge Base
+### Files: vectorstore/knowledge_base.py, vectorstore/embedder.py
+### Updated: agent/career_coach.py
+
+---
+
+### LANGSMITH OBSERVABILITY
+
+WHAT IT IS:
+LangChain's observability platform.
+Tracks every chain run, every API call, every token.
+Visualises the complete pipeline in a dashboard.
+
+HOW IT WAS SET UP:
+Three environment variables added to .env:
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_PROJECT=resume-ai-coach
+LANGCHAIN_API_KEY=your_key_here
+
+No code changes needed.
+LangChain automatically detects and sends traces.
+
+WHAT YOU CAN SEE IN LANGSMITH:
+- Every step of every chain execution
+- Exact prompt sent to Claude
+- Exact response received
+- Token count per API call
+- Latency per step in milliseconds
+- Error context when things fail
+
+WHY IT MATTERS:
+Observability is how production AI teams debug and monitor.
+When output quality drops you see exactly what prompt caused it.
+When latency spikes you see which step is slow.
+Screenshot of LangSmith trace is strong portfolio evidence.
+
+INTERVIEW ANSWER:
+"I added LangSmith observability so every chain run is fully
+traced. I can see the exact prompt, response, token count,
+and latency for every API call. This is how production AI
+teams monitor LLM applications and debug quality issues."
+
+---
+
+### RAG — RETRIEVAL AUGMENTED GENERATION
+
+WHY RAG WAS ADDED:
+Without RAG, Claude answers from general training data.
+Good but generic. May hallucinate specific details.
+With RAG, Claude answers from YOUR specific knowledge base.
+Grounded, specific, expert-level responses.
+
+THE THREE NEW CONCEPTS:
+
+1. EMBEDDINGS
+Converting text to vectors — lists of numbers representing meaning.
+Similar meanings produce similar vectors.
+"STAR method" and "bullet point framework" are close vectors.
+"STAR method" and "cooking recipe" are far apart vectors.
+Model used: sentence-transformers/all-MiniLM-L6-v2
+Why this model: free, runs locally, no API cost, industry standard.
+
+2. VECTOR STORE (FAISS)
+Database that stores vectors and finds similar ones fast.
+FAISS = Facebook AI Similarity Search.
+Runs locally — no server, no cost, no API needed.
+Saves to disk as faiss_index/ folder.
+Built once, loaded on every subsequent app start.
+
+3. TEXT SPLITTERS
+Large documents split into smaller chunks before embedding.
+Why: a 2000 word document as one vector is too general.
+Split into 10 chunks of 200 words — each chunk is specific.
+chunk_size=500: each chunk maximum 500 characters.
+chunk_overlap=50: adjacent chunks share 50 characters.
+Overlap ensures sentences at boundaries are never lost.
+Class used: RecursiveCharacterTextSplitter
+Splits at: paragraph breaks → line breaks → sentences → words
+
+THE RAG PIPELINE:
+
+PREPARATION (done once, saved to disk):
+12 knowledge base documents written
+        ↓
+RecursiveCharacterTextSplitter creates 29 chunks
+        ↓
+all-MiniLM-L6-v2 converts each chunk to a vector
+        ↓
+FAISS stores all vectors in faiss_index/ folder
+
+AT QUERY TIME (every user question):
+User asks question
+        ↓
+Question converted to vector by same embedding model
+        ↓
+FAISS finds 3 most similar chunks (similarity_search)
+        ↓
+3 chunks joined into one string
+        ↓
+String injected into Claude's prompt as [KNOWLEDGE BASE]
+        ↓
+Claude answers from retrieved expertise not hallucination
+
+THE KNOWLEDGE BASE CONTENTS:
+1. Strong bullet points — STAR method
+2. Quantifying achievements
+3. Resume structure for PM roles
+4. What AI PM roles look for in 2026
+5. How to showcase LLM experience
+6. PRD writing for AI features
+7. ATS optimisation rules for 2026
+8. Keywords for AI PM roles
+9. What Indian tech companies look for
+10. Framing enterprise experience for consumer tech
+11. Top AI PM interview questions
+12. Salary context for AI PM roles in India
+
+HOW RAG CONNECTS TO CHAT AGENT:
+In chat_with_coach() function:
+1. User message received
+2. retrieve_relevant_knowledge(user_message) called
+3. Top 3 relevant chunks retrieved from FAISS
+4. Enhanced message built:
+   Original question + retrieved knowledge chunks
+5. Enhanced message sent to Claude via agent
+6. Claude answers grounded in retrieved expertise
+
+DIFFERENCE FROM CONTEXT INJECTION:
+Context injection: fixed data injected once per session
+   (resume + JD + analysis results — same every call)
+
+RAG: dynamic retrieval at every query
+   (different chunks retrieved for different questions)
+   "bullet points question" → retrieves STAR method chunk
+   "ATS score question" → retrieves ATS optimisation chunk
+   "interview question" → retrieves interview prep chunk
+
+Both work together in this app.
+
+WHAT STAR METHOD IS:
+Storytelling framework for resume bullets and interviews.
+S — Situation: what was the context?
+T — Task: what was your responsibility?
+A — Action: what did YOU specifically do?
+R — Result: what was the measurable outcome?
+
+Weak bullet: "Worked on AI projects"
+Strong bullet: "Defined requirements for Vertex AI integration
+               partnering with 4 ML engineers across 3 sprints,
+               reducing manual reporting effort by 25%"
+
+STAR forces specificity, quantification, and attribution.
+Every resume bullet should follow this structure.
+
+DEBUGGING CHECKLIST:
+If vector store not found:
+□ Run: python vectorstore/embedder.py to rebuild
+□ Check faiss_index/ folder exists in vectorstore/
+
+If retrieval returns irrelevant results:
+□ Check knowledge_base.py documents are relevant
+□ Try increasing k from 3 to 5 in retrieve_relevant_knowledge
+□ Add more specific documents to knowledge base
+
+If import error on career_coach.py:
+□ Check: from vectorstore.embedder import retrieve_relevant_knowledge
+□ Run from project root, not from inside a subfolder
+
+GENAI CONCEPTS IN RAG:
+Embeddings          → text converted to semantic vectors
+Vector similarity   → finding meaning-close chunks
+Retrieval           → dynamic knowledge at query time
+Grounding           → answers from facts not hallucination
+Chunking            → splitting docs for precise retrieval
+Semantic search     → meaning-based not keyword-based

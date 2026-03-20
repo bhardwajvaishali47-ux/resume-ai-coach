@@ -622,12 +622,17 @@ UI layers for clean architecture."
 ✅ Error handling throughout pipeline
 ✅ Full documentation in DECISIONS.md
 
-## Version 2 Planned Features (Roadmap)
+## Version 2 — Features Added
 
-⏳ RAG knowledge base with FAISS
-⏳ Live job listings via Adzuna APIs
+✅ LangSmith observability — chain tracing active
+✅ RAG knowledge base — FAISS vector store with 12 expert documents
+✅ Semantic retrieval — relevant knowledge injected on every question
+✅ Enhanced chat responses — grounded in expertise not just training data
+
+## Version 3 Planned Features (Roadmap)
+
 ⏳ Cover letter generator
+⏳ Live jobs API via Adzuna
 ⏳ PDF export of rewritten resume
-⏳ LangSmith observability
+⏳ Deploy to Streamlit Cloud
 ⏳ FastAPI backend for production
-⏳ Deployment to Streamlit Cloud
