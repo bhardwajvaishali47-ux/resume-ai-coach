@@ -1424,3 +1424,167 @@ Retrieval           → dynamic knowledge at query time
 Grounding           → answers from facts not hallucination
 Chunking            → splitting docs for precise retrieval
 Semantic search     → meaning-based not keyword-based
+
+
+## Day 7 — Cover Letter Generator
+### File: chains/cover_letter.py
+### Updated: app.py
+
+---
+
+### WHY THIS FILE EXISTS
+After seeing their match analysis, users need help
+applying to the job. A tailored cover letter is the
+next logical step. Generic cover letters get ignored.
+This generates a specific letter using everything
+the app already knows about the user and the role.
+
+---
+
+### WHAT IS NEW COMPARED TO PREVIOUS CHAINS
+
+Previous chains returned JSON:
+resume_parser_chain = prompt | llm | JsonOutputParser
+jd_matcher_chain = prompt | llm | JsonOutputParser
+
+This chain returns plain text:
+cover_letter_chain = prompt | llm | StrOutputParser
+
+StrOutputParser vs JsonOutputParser:
+JsonOutputParser — extracts JSON, returns Python dictionary
+StrOutputParser — returns raw text string as-is
+Cover letter is prose text not structured data.
+So StrOutputParser is the correct choice here.
+
+---
+
+### THE PROMPT ENGINEERING IN THIS FILE
+
+Four techniques working together:
+
+1. ROLE PROMPTING
+"You are an expert cover letter writer with 15 years
+of experience helping professionals land senior roles
+at top tech companies."
+Activates specific cover letter writing expertise.
+
+2. NEGATIVE CONSTRAINTS — what NOT to do
+"You never use clichés like:
+- I am writing to apply for...
+- I am a passionate and driven professional...
+- I would be a great fit because..."
+Explicitly forbidding bad patterns is as important
+as instructing good ones. Without this, Claude
+defaults to template-sounding language.
+
+3. CONTEXT INJECTION — all analysis results passed in
+Name, recent role, skills, certifications,
+job description, match score, strengths, gaps,
+recommendation — all injected as variables.
+Every letter is specific to this person and this job.
+
+4. STRUCTURAL INSTRUCTIONS — paragraph by paragraph
+Paragraph 1: open with strongest achievement
+Paragraph 2: connect AI experience to company
+Paragraph 3: address gap honestly and reframe
+Closing: specific ask with confident tone
+Telling Claude the structure produces consistent,
+well-organised letters every time.
+
+---
+
+### THE VARIABLES IN THIS CHAIN
+
+cover_letter_chain.invoke({
+    "name": name,
+    "recent_role": recent_role,
+    "recent_company": recent_company,
+    "skills": ", ".join(skills[:10]),
+    "certifications": certifications,
+    "years_experience": years_experience,
+    "job_description": job_description,
+    "match_score": match_score,
+    "strengths": strengths,
+    "gaps": gaps,
+    "recommendation": recommendation
+})
+
+skills[:10] — only first 10 skills passed.
+Why: listing all 28 skills in a cover letter is
+overwhelming. First 10 are most important.
+
+years_experience = len(experience) * 2
+Why: rough estimate assuming 2 years per role.
+Not perfect but reasonable for a cover letter.
+
+---
+
+### HOW IT CONNECTS TO UI (app.py)
+
+Button triggers generation:
+if st.button("Generate Cover Letter", type="secondary"):
+    cover_letter = generate_cover_letter(
+        result["parsed_resume"],
+        st.session_state["job_description"],
+        result["match_result"]
+    )
+    st.session_state["cover_letter"] = cover_letter
+
+Stored in session_state so it survives reruns.
+
+Displayed in text area:
+st.text_area("Your Cover Letter",
+             value=st.session_state["cover_letter"],
+             height=400)
+
+User can select all and copy directly from the text area.
+
+---
+
+### WHAT MAKES THE GENERATED LETTER STRONG
+
+The gap reframing is the most valuable part.
+Most candidates either ignore their gaps or apologise.
+This chain addresses gaps directly and reframes them
+as perspective advantages.
+
+Example from real output:
+Gap: No ecommerce experience
+Reframe: "I've built AI products where a single model
+failure means network degradation affecting millions
+of critical connections. That instils a rigour around
+model evaluation that consumer internet sometimes skips."
+
+This is genuine career coaching — not just filling a template.
+
+---
+
+### GENAI CONCEPTS IN THIS FILE
+
+Prompt Engineering    → role, constraints, structure, context
+Role Prompting        → expert cover letter writer persona
+Negative Constraints  → explicitly forbidding clichés
+Context Injection     → all analysis results as variables
+Structural Prompting  → paragraph-by-paragraph instructions
+StrOutputParser       → plain text output not JSON
+Multi-variable LCEL   → 11 variables in one invoke call
+
+---
+
+### DEBUGGING CHECKLIST
+
+If letter sounds generic:
+□ Check all variables are being passed to invoke()
+□ Check job_description is in session_state
+□ Check match_result has strengths and gaps populated
+
+If letter is too long:
+□ Add to system_message: "Maximum 350 words strictly"
+
+If gap reframing is weak:
+□ Add more specific reframing examples to human_message
+□ Tell Claude: "The reframe must be specific to their
+  actual experience, not a generic statement"
+
+If StrOutputParser not found:
+□ from langchain_core.output_parsers import StrOutputParser
