@@ -251,3 +251,383 @@ No competitor has a chat agent that remembers the full resume, the job descripti
 The One Paragraph to Memorise
 Read this out loud three times. Then close this and say it in your own words.
 "I built an AI Resume Coach using LangChain and Claude's API. The app reads a PDF resume, extracts structured data using a parsing chain, compares it against a job description using Claude's semantic understanding — not keyword matching — and returns a match score with specific gaps and a personalised recommendation. What makes it genuinely different is the conversational career coach built on top. After the analysis, users can have a full conversation — the agent knows their complete resume, the job description, the match results, and remembers everything said in the session. I built it because I was facing this problem personally, and the tools available were giving me ATS scores but no real guidance. Every technical decision was deliberate — Claude Sonnet for the 200k context window, LangChain for orchestration, separate pipeline and UI layers for clean architecture."
+
+
+# AI Resume Coach — V1 MVP Reference
+# Author: Vaishali Bhardwaj
+# Version: 1.0 | Built: March 2026
+
+---
+
+## What This App Does — One Paragraph
+
+An AI-powered resume coach that reads a PDF resume,
+extracts structured data, compares it against a job
+description using semantic understanding, and returns
+a match score with specific gaps and personalised
+recommendation. A conversational chat agent with full
+memory then lets the user ask follow-up questions,
+request rewrites, and get specific career advice —
+all grounded in their actual resume and job description.
+
+---
+
+## The Problem It Solves
+
+Existing tools like Jobscan give ATS keyword scores.
+They do not give genuine advice.
+They cannot answer follow-up questions.
+They use keyword matching — not semantic understanding.
+This app was built from personal experience of that gap.
+
+---
+
+## Tech Stack — What and Why
+
+| Technology | What | Why |
+|---|---|---|
+| Python | Language | AI/ML ecosystem is Python-first |
+| Claude Sonnet | LLM | 200k token window, best JSON extraction |
+| LangChain | Framework | Chains, memory, agents out of the box |
+| Streamlit | UI | Python-only, built-in file upload and chat |
+| pdfplumber | PDF reader | Best for resume layouts and encoding |
+| python-dotenv | Security | API keys never in source code |
+| tempfile | Bridge | Connects Streamlit memory to disk |
+| FAISS (planned) | Vector DB | RAG knowledge base — Week 3 roadmap |
+
+---
+
+## Folder Structure — What Lives Where
+
+## Folder Structure — What Lives Where
+```
+resume-ai-coach/
+├── app.py                 UI layer — what user sees
+├── pipeline.py            Orchestration — connects everything
+├── chains/
+│   ├── resume_parser.py   Text → structured JSON
+│   └── jd_matcher.py      Resume + JD → match analysis
+├── tools/
+│   └── pdf_reader.py      PDF → clean text
+├── agent/
+│   └── career_coach.py    Conversational AI with memory
+└── docs/
+    ├── DECISIONS.md        Full detailed documentation
+    ├── MVP_SUMMARY.md      This file — quick reference
+    └── ARCHITECTURE.md     Architecture diagrams
+```
+
+---
+
+## The Data Flow — Step by Step
+```
+User uploads PDF + pastes JD + clicks Analyse
+        ↓
+tempfile saves PDF to disk (bridge from memory to disk)
+        ↓
+pipeline.py: analyze_resume(pdf_path, job_description)
+        ↓
+Step 1: pdf_reader.py
+        pdfplumber extracts text from every page
+        clean_text() fixes (cid:127) encoding issues
+        Returns: clean plain text string
+        ↓
+Step 2: resume_parser.py
+        PromptTemplate fills {resume_text}
+        Claude extracts structured data
+        JsonOutputParser converts to dictionary
+        Returns: {name, email, skills, experience, education}
+        ↓
+Step 3: jd_matcher.py
+        PromptTemplate fills {resume_text} + {job_description}
+        Claude compares both semantically
+        Returns: {score, matched_skills, missing_skills,
+                  strengths, gaps, recommendation}
+        ↓
+app.py stores in session_state
+app.py displays results
+
+User types in chat box
+        ↓
+career_coach.py: chat_with_coach(agent, message)
+        ↓
+RunnableWithMessageHistory reads full history
+        ↓
+Prompt = SystemMessage (full context) +
+         MessagesPlaceholder (full history) +
+         Human message (current question)
+        ↓
+Claude responds with full personalised context
+        ↓
+Response saved to ChatMessageHistory
+        ↓
+Chat bubble displayed in UI
+```
+
+---
+
+## 7 GenAI Concepts — Name, Definition, Where Used
+
+### 1. Prompt Engineering
+Deliberately designing LLM instructions to get
+consistent, reliable outputs every time.
+Used in every file in this project.
+
+### 2. Role Prompting
+Giving Claude a specific expert persona.
+```
+resume_parser.py:  "You are an expert resume parser"
+jd_matcher.py:     "You are an expert recruitment consultant
+                    with 15 years of experience"
+career_coach.py:   "You are an expert AI career coach"
+```
+Why: activates specific expert knowledge from training data.
+
+### 3. Output Constraints
+Telling Claude exactly what format to return.
+```
+"Return valid JSON only.
+No extra text. No explanation. No markdown."
+```
+Why: without this Claude adds text that breaks JsonOutputParser.
+
+### 4. Chain of Thought Prompting
+Forcing Claude to reason step by step before answering.
+Used in jd_matcher.py:
+```
+Analyse carefully:
+1. Which skills does the candidate have?
+2. Which are missing?
+3. What are their strengths?
+4. What are the gaps?
+5. Overall fit?
+```
+Why: step-by-step reasoning produces more accurate results
+than asking for the conclusion directly.
+
+### 5. LangChain Chains (LCEL)
+Connecting components in sequence using pipe operator.
+```
+chain = prompt | llm | parser
+```
+Output of each component flows into the next.
+Fixed sequence. Deterministic. Used in parser and matcher.
+
+### 6. Context Injection
+Injecting full analysis into system prompt before chat.
+```
+System prompt contains:
+- Full resume text
+- Job description
+- Match score, matched skills, missing skills
+- Strengths and gaps
+- 7 behaviour rules
+```
+Why: every chat response is personalised to THIS user.
+Not generic career advice.
+
+### 7. Conversation Memory
+Storing full chat history and sending it every API call.
+```
+LLMs are stateless — every call is completely fresh.
+Memory pattern:
+store every exchange →
+send full history with every new message →
+Claude reads everything → responds with full context
+```
+Tools: ChatMessageHistory + MessagesPlaceholder +
+       RunnableWithMessageHistory
+
+---
+
+## Semantic Understanding vs Keyword Matching
+
+### Keyword Matching (Jobscan, basic ATS):
+Checks if exact words from JD appear in resume.
+```
+JD:     "payments infrastructure"
+Resume: "payment integration project"
+Result: NOT MATCHED ❌ — words are different
+```
+Can be gamed by keyword stuffing.
+No understanding of meaning or context.
+
+### Semantic Understanding (Claude):
+Compares meaning and context, not words.
+```
+JD:     "payments infrastructure"
+Resume: "payment integration project"
+Result: MATCHED ✅ — same domain, same work type
+```
+Claude connected "led team of 4" with "mentor junior engineers"
+without those exact words appearing in both.
+
+### Interview Line:
+"Unlike keyword matching tools that check for exact word
+presence, our app uses Claude's semantic understanding
+to compare meaning and context — the same way a human
+recruiter reads a resume."
+
+---
+
+## Key Technical Decisions and Why
+
+### Claude Sonnet not Opus
+5x cheaper. Sufficient capability for our tasks.
+PM principle: cheapest model that meets quality requirements.
+
+### Claude Sonnet not Haiku
+Haiku produced inconsistent JSON on complex resumes.
+Quality is non-negotiable for user-facing products.
+
+### Claude Sonnet not GPT-4o
+200k vs 128k context window.
+Simpler architecture — no memory compression needed.
+Better structured extraction performance in testing.
+
+### LangChain not raw Anthropic SDK
+Raw SDK: send text, get text back. That is all.
+LangChain adds: chains, memory, agents, tools, observability.
+Building from scratch = weeks of extra work.
+
+### pipeline.py as separate orchestration layer
+app.py handles only UI.
+Separation of concerns — UI can change without touching logic.
+Same pipeline could serve mobile app or Chrome extension later.
+
+### Streamlit not Flask or React
+Python-only — no frontend expertise needed.
+Fast to build and demo.
+Can be replaced with React later without changing backend.
+
+### session_state for persistence
+Streamlit reruns entire script on every user interaction.
+Without session_state, results disappear on every rerun.
+session_state is Streamlit's persistent dictionary.
+
+---
+
+## Three Differentiators — Say These in Every Interview
+
+### 1. Semantic matching not keyword matching
+Other tools count keyword matches.
+This app understands meaning.
+Claude connected "payment integration" with
+"payments infrastructure" without exact word match.
+
+### 2. Genuine recommendation not just a score
+Every competitor gives a percentage.
+This app gives a specific personalised recommendation
+referencing actual companies, metrics, and gaps.
+Sounds like a real recruiter wrote it.
+
+### 3. Conversational memory
+No competitor has a chat agent that remembers:
+- The full resume
+- The job description
+- The complete match analysis
+- Everything said in the conversation
+When user says "make that shorter" — agent knows
+exactly what it wrote and shortens it.
+Multi-turn conversation with full persistent context.
+
+---
+
+## Concepts I Must Know for AI PM Interviews
+
+### What is RAG?
+Retrieval Augmented Generation.
+Store knowledge base as vector embeddings.
+At query time, retrieve most relevant documents.
+Give them to LLM as context.
+Reduces hallucination — model answers from your facts.
+NOT what I built — I built context injection.
+RAG is on my Week 3 roadmap using FAISS.
+
+### What is a Vector / Embedding?
+Every word converted to a list of numbers.
+Similar meanings have similar numbers — close on a map.
+"payments" and "financial transactions" are close.
+"payments" and "cooking" are far apart.
+This is why semantic search works.
+
+### What is a Chain vs Agent?
+Chain: fixed sequence. You decide the steps.
+prompt | llm | parser — always in that order.
+
+Agent: LLM decides the steps.
+Give it tools and a goal.
+It reasons about what to do next.
+Your career coach behaves as an agent.
+
+### What is Abstraction?
+Hiding complexity behind a simple interface.
+analyze_resume() hides PDF reading, parsing, matching.
+UI just calls one function. Gets everything back.
+Like a car pedal hiding the engine.
+
+### What is Orchestration?
+Coordinating multiple components to work together.
+pipeline.py coordinates pdf_reader, parser, matcher.
+Each component does one job.
+Pipeline tells them when to run and combines results.
+Like a restaurant coordinator connecting three chefs.
+
+---
+
+## Scalability Issues and Fixes — for Product Questions
+
+| Problem | What breaks | Fix |
+|---|---|---|
+| API costs | $1,800/month at 1000 users/day | Rate limiting, auth, budget caps |
+| Concurrent load | Streamlit single process | Migrate to FastAPI backend |
+| Session state | Not production ready | Move to Redis |
+| Processing speed | 20-30 seconds blocks server | Async processing with job IDs |
+| No rate limiting | One user drains all credits | Per-user limits, authentication |
+
+---
+
+## The One Paragraph — Memorise This
+
+"I built an AI Resume Coach using LangChain and Claude API.
+The app reads a PDF resume, extracts structured data using
+a parsing chain, compares it against a job description using
+Claude's semantic understanding — not keyword matching —
+and returns a match score with specific gaps and a
+personalised recommendation. What makes it different is the
+conversational career coach built on top. After analysis,
+users can have a full conversation — the agent knows their
+complete resume, the job description, the match results,
+and remembers everything said in the session. I built it
+because I was facing this problem personally. Every technical
+decision was deliberate — Claude Sonnet for the 200k context
+window, LangChain for orchestration, separate pipeline and
+UI layers for clean architecture."
+
+---
+
+## Version 1 Completed Features
+
+✅ PDF resume upload and text extraction
+✅ Resume parsing to structured JSON
+✅ JD matching with semantic understanding
+✅ Match score with progress bar
+✅ Matched and missing skills display
+✅ Strengths and gaps analysis
+✅ Personalised recommendation
+✅ Conversational chat agent with memory
+✅ Context injection before chat begins
+✅ Multi-turn conversation with persistence
+✅ Session state management
+✅ Error handling throughout pipeline
+✅ Full documentation in DECISIONS.md
+
+## Version 2 Planned Features (Roadmap)
+
+⏳ RAG knowledge base with FAISS
+⏳ Live job listings via Adzuna API
+⏳ Cover letter generator
+⏳ PDF export of rewritten resume
+⏳ LangSmith observability
+⏳ FastAPI backend for production
+⏳ Deployment to Streamlit Cloud
