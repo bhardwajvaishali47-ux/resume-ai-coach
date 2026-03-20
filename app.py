@@ -4,6 +4,7 @@ import os
 from dotenv import load_dotenv
 from pipeline import analyze_resume
 from agent.career_coach import build_career_coach, chat_with_coach
+from chains.cover_letter import generate_cover_letter
 
 load_dotenv() # invoke API url key
 
@@ -137,6 +138,29 @@ if st.session_state.get("analysis_done") : #Checks if analysis has been complete
         st.subheader("Recommendation")
         st.info(match.get("recommendation", ""))
         
+        st.divider()
+        
+        ##adding cover letter 
+        st.subheader("Cover Letter Generator")
+        st.markdown("Generate a personalised cover letter tailored to this specific role.")
+        
+        if st.button("Generate cover letter" , type = "secondary"):
+            with st.spinner("Writing your cover letter..."):
+                cover_letter = generate_cover_letter(
+                    result["parsed_resume"],
+                    st.session_state["job_description"],
+                    result["match_result"]
+                )
+                st.session_state["cover_letter"] = cover_letter
+                
+        if st.session_state.get("cover_letter"):
+            st.text_area(
+                "Your Cover Letter",
+                value = st.session_state["cover_letter"],
+                height = 400
+            )
+            st.caption("Copy the text above and paste it into your application")
+            
         st.divider()
         
         st.subheader("Your Parsed Resume")
