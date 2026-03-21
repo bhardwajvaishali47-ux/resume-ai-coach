@@ -99,7 +99,7 @@ def call_jobs_api(
     return response.json()
 
 
-col_title, col_logout = st.columns([6, 1])
+col_title, col_logout = st.columns([8, 1])
 with col_title:
     st.title("AI Resume Coach")
 with col_logout:
@@ -108,7 +108,10 @@ with col_logout:
         for key in list(st.session_state.keys()):
             del st.session_state[key]
         st.rerun()
-
+user_name = st.session_state.get("user_name", "")
+user_email = st.session_state.get("user_email", "")
+if user_name:
+    st.text(f"👋 Welcome back {user_name} | {user_email}")
 st.markdown("Upload your resume and paste a job description to get an instant match analysis powered by Claude AI.")
 st.divider()
 
