@@ -7,3 +7,9 @@ python-dotenv
 pdfplumber
 streamlit
 reportlab
+python-jose[cryptography]
+passlib[bcrypt]
+sqlalchemy
+google-auth
+google-auth-oauthlib
+httpx

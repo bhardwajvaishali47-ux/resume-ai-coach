@@ -1,26 +1,46 @@
 import os
 import tempfile
-import uuid # UUID — Universally Unique Identifier. Generates a random string like "550e8400-e29b-41d4-a716-446655440000". Statistically impossible to generate the same ID twice. Used to uniquely identify each user's session.
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+import uuid
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, status, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from typing import Optional
+from sqlalchemy.orm import Session
 import uvicorn
 from dotenv import load_dotenv
+
+
+load_dotenv()
 
 from pipeline import analyze_resume
 from chains.cover_letter import generate_cover_letter
 from tools.jobs_api import get_jobs_for_profile
 from agent.career_coach import build_career_coach, chat_with_coach
+from auth.database import get_db, create_tables
+from auth.models import User
+from auth.auth_handler import (
+    hash_password,
+    verify_password,
+    create_access_token,
+    verify_token,
+    get_current_user_email
+)
 
-load_dotenv()
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    create_tables()
+    print("AI Resume Coach API started successfully")
+    yield
 
 #Creates the FastAPI application. The title and description appear automatically in the API documentation at http://localhost:8000/docs.
 app = FastAPI(
     title="AI Resume Coach API",
     description="Backend API for AI Resume Coach application",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # CORS MIDDLEWARE
@@ -35,8 +55,35 @@ app.add_middleware(
 
 sessions = {}
 
+# add authentication user email and password 
+security = HTTPBearer()
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db)
+) -> User:
+    """
+    FastAPI dependency — extracts and verifies the current user
+    from the JWT token in the request header.
+    Used to protect endpoints that require authentication.
+    """
+    token = credentials.credentials
+    email = get_current_user_email(token)
+    user = db.query(User).filter(User.email == email).first() #This is SQLAlchemy's way of querying the database.
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found"
+        )
+    return user
+
+
+
 # pydantic model
 # Pydantic models define the shape of request data. FastAPI automatically validates incoming JSON against these models. If someone sends a request missing job_description, FastAPI returns a clear error before your code even runs. This is automatic input validation — you get it for free.
+
+
 class CoverLetterRequest(BaseModel):
     parsed_resume: dict
     job_description: str
@@ -56,6 +103,23 @@ class JobsRequest(BaseModel):
     match_result: dict
     job_description: str
     country: str = "in"
+    
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+    full_name: str
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str
+    user_email: str
+    user_name: str
 
 
 # Endpoint decorators
@@ -75,6 +139,125 @@ def health_check():
         "status": "healthy",
         "version": "1.0.0",
         "message": "AI Resume Coach API is running"
+    }
+
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    create_tables()
+    print("AI Resume Coach API started successfully")
+    yield
+
+
+@app.post("/auth/register", response_model=TokenResponse) # Tells FastAPI to validate the response against the TokenResponse Pydantic model before sending it. If your function returns extra fields, they are automatically removed. Ensures consistent API responses.
+def register(request: RegisterRequest, db: Session = Depends(get_db)):
+    """
+    User registration endpoint.
+    Creates a new account with email and password.
+
+    Input:  {email, password, full_name}
+    Output: {access_token, token_type, user_email, user_name}
+
+    Steps:
+    1. Check if email already exists
+    2. Hash the password
+    3. Create user in database
+    4. Return JWT token
+    """
+    existing_user = db.query(User).filter(
+        User.email == request.email
+    ).first()
+
+    if existing_user:
+        raise HTTPException(
+            status_code=400,
+            detail="Email already registered. Please login instead."
+        )
+
+    hashed = hash_password(request.password)
+    new_user = User(
+        email=request.email,
+        full_name=request.full_name,
+        hashed_password=hashed
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    token = create_access_token({"sub": new_user.email})
+
+    return TokenResponse(
+        access_token=token,
+        token_type="bearer",
+        user_email=new_user.email,
+        user_name=new_user.full_name or ""
+    )
+
+
+@app.post("/auth/login", response_model=TokenResponse)
+def login(request: LoginRequest, db: Session = Depends(get_db)):
+    """
+    User login endpoint.
+    Verifies credentials and returns JWT token.
+
+    Input:  {email, password}
+    Output: {access_token, token_type, user_email, user_name}
+
+    Steps:
+    1. Find user by email
+    2. Verify password against stored hash
+    3. Return JWT token
+    """
+    user = db.query(User).filter(
+        User.email == request.email
+    ).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid email or password"
+        )
+
+    if not user.hashed_password:
+        raise HTTPException(
+            status_code=401,
+            detail="This account uses Google login. Please sign in with Google."
+        )
+
+    if not verify_password(request.password, user.hashed_password):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid email or password"
+        )
+
+    from sqlalchemy.sql import func
+    user.last_login = func.now()
+    db.commit()
+
+    token = create_access_token({"sub": user.email})
+
+    return TokenResponse(
+        access_token=token,
+        token_type="bearer",
+        user_email=user.email,
+        user_name=user.full_name or ""
+    )
+
+
+@app.get("/auth/me")
+def get_me(current_user: User = Depends(get_current_user)):
+    """
+    Returns the current logged in user's profile.
+    Protected endpoint — requires valid JWT token.
+
+    Input:  JWT token in Authorization header
+    Output: {email, full_name, created_at}
+    """
+    return {
+        "email": current_user.email,
+        "full_name": current_user.full_name,
+        "created_at": str(current_user.created_at)
     }
 
 
