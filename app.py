@@ -3,12 +3,24 @@ import os
 import uuid
 import requests
 from dotenv import load_dotenv
+from login import show_login_page
 from tools.pdf_exporter import create_resume_pdf, create_analysis_report
 from chains.resume_enhancer import enhance_resume_with_chat, get_enhancement_summary
 
 load_dotenv()
 
 API_BASE_URL = "http://localhost:8000"
+
+st.set_page_config(
+    page_title="AI Resume Coach",
+    page_icon="📄",
+    layout="wide"
+)
+
+if not st.session_state.get("authenticated"):
+    show_login_page()
+    st.stop()
+
 
 def call_analyze_api(pdf_file, job_description: str) -> dict:
     """
@@ -87,14 +99,16 @@ def call_jobs_api(
     return response.json()
 
 
+col_title, col_logout = st.columns([6, 1])
+with col_title:
+    st.title("AI Resume Coach")
+with col_logout:
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("Logout"):
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.rerun()
 
-st.set_page_config(
-    page_title="AI Resume Coach",
-    page_icon="📄",
-    layout="wide"
-)
-
-st.title("AI Resume Coach")
 st.markdown("Upload your resume and paste a job description to get an instant match analysis powered by Claude AI.")
 st.divider()
 
@@ -130,16 +144,16 @@ if analyse_button and not st.session_state.get("analysis_done"):
     elif not job_description.strip():
         st.warning("Please paste a job description first.")
     else:
-     with st.spinner("Analysing your resume with Claude AI... This may take 20-30 seconds."):
-        result = call_analyze_api(upload_file, job_description)
+        with st.spinner("Analysing your resume with Claude AI... This may take 20-30 seconds."):
+            result = call_analyze_api(upload_file, job_description)
 
-    if "error" in result:
-        st.error(result["error"])
-    else:
-        st.session_state["result"] = result
-        st.session_state["analysis_done"] = True
-        st.session_state["job_description"] = job_description
-        st.session_state["session_id"] = str(uuid.uuid4())
+        if "error" in result:
+            st.error(result["error"])
+        else:
+            st.session_state["result"] = result
+            st.session_state["analysis_done"] = True
+            st.session_state["job_description"] = job_description
+            st.session_state["session_id"] = str(uuid.uuid4())
 
 
 # RESULTS SECTION
@@ -201,13 +215,14 @@ if st.session_state.get("analysis_done"):
     st.markdown("Generate a personalised cover letter tailored to this specific role.")
 
     if st.button("Generate Cover Letter", type="secondary"):
-     with st.spinner("Writing your cover letter..."):
-        cover_letter = call_cover_letter_api(
-            result["parsed_resume"],
-            st.session_state["job_description"],
-            result["match_result"]
-        )
-        st.session_state["cover_letter"] = cover_letter
+        with st.spinner("Writing your cover letter..."):
+            cover_letter = call_cover_letter_api(
+                result["parsed_resume"],
+                st.session_state["job_description"],
+                result["match_result"]
+            )
+            st.session_state["cover_letter"] = cover_letter
+
     if st.session_state.get("cover_letter"):
         st.text_area(
             "Your Cover Letter",
@@ -255,8 +270,8 @@ if st.session_state.get("analysis_done"):
             file_name=st.session_state["report_file_name"],
             mime="application/pdf"
         )
-        
-        
+
+
 # LIVE JOBS SECTION
 if st.session_state.get("analysis_done"):
     st.divider()
@@ -276,12 +291,11 @@ if st.session_state.get("analysis_done"):
         with st.spinner("Searching live job listings..."):
             result = st.session_state["result"]
             jobs_data = call_jobs_api(
-            result["parsed_resume"],
-            result["match_result"],
-            st.session_state.get("job_description", ""),
-            country
-)
-
+                result["parsed_resume"],
+                result["match_result"],
+                st.session_state.get("job_description", ""),
+                country
+            )
             st.session_state["jobs_data"] = jobs_data
 
     if st.session_state.get("jobs_data"):
@@ -289,11 +303,15 @@ if st.session_state.get("analysis_done"):
         jobs = jobs_data["jobs"]
         keywords = jobs_data["keywords_used"]
 
-        st.caption(f"Searched for: '{keywords}' — Found {jobs_data['jobs_found']} listings")
+        st.caption(
+            f"Searched for: '{keywords}' — Found {jobs_data['jobs_found']} listings"
+        )
 
         if jobs:
             for i, job in enumerate(jobs, 1):
-                with st.expander(f"{job['title']} — {job['company']} | {job['location']}"):
+                with st.expander(
+                    f"{job['title']} — {job['company']} | {job['location']}"
+                ):
                     col_a, col_b = st.columns(2)
 
                     with col_a:
@@ -303,14 +321,14 @@ if st.session_state.get("analysis_done"):
                         st.markdown(f"**Posted:** {job['created']}")
 
                     with col_b:
-                        st.markdown(f"**Description:**")
+                        st.markdown("**Description:**")
                         st.markdown(job['description'])
 
-                    st.markdown(f"[Apply Now →]({job['apply_url']})") #[Apply Now →]({job['apply_url']})
-#Markdown link syntax. Creates a clickable link that opens Adzuna's apply page in a new tab. The user goes directly to the job application from your app.
+                    st.markdown(f"[Apply Now →]({job['apply_url']})")
         else:
-            st.warning("No jobs found for your profile. Try a different country or run the analysis again.")
-
+            st.warning(
+                "No jobs found for your profile. Try a different country or run the analysis again."
+            )
 
 
 # CHAT SECTION
@@ -354,17 +372,24 @@ if st.session_state.get("analysis_done"):
             "content": response
         })
 
+
 # ENHANCED RESUME DOWNLOAD SECTION
 if st.session_state.get("analysis_done"):
     st.divider()
     st.subheader("Download Enhanced Resume")
-    st.markdown("After chatting with your AI coach to improve your bullets, download your enhanced resume as a PDF.")
+    st.markdown(
+        "After chatting with your AI coach to improve your bullets, "
+        "download your enhanced resume as a PDF."
+    )
 
     messages = st.session_state.get("messages", [])
     assistant_count = sum(1 for m in messages if m["role"] == "assistant")
 
     if assistant_count > 0:
-        st.info(f"Found {assistant_count} coaching responses in your chat. Click below to apply improvements to your resume.")
+        st.info(
+            f"Found {assistant_count} coaching responses in your chat. "
+            "Click below to apply improvements to your resume."
+        )
 
         if st.button("Generate Enhanced Resume", type="secondary"):
             with st.spinner("Applying improvements from your coaching session..."):
@@ -402,5 +427,7 @@ if st.session_state.get("analysis_done"):
                 mime="application/pdf"
             )
     else:
-        st.info("Chat with your AI coach first to get bullet point improvements, then come back here to download your enhanced resume.")
-
+        st.info(
+            "Chat with your AI coach first to get bullet point improvements, "
+            "then come back here to download your enhanced resume."
+        )
