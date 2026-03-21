@@ -203,10 +203,11 @@ if st.session_state.get("analysis_done"):
         with st.spinner("Searching live job listings..."):
             result = st.session_state["result"]
             jobs_data = get_jobs_for_profile(
-                result["parsed_resume"],
-                result["match_result"],
-                country=country
-            )
+            result["parsed_resume"],
+            result["match_result"],
+            country=country,
+            job_description=st.session_state.get("job_description", "")
+)
             st.session_state["jobs_data"] = jobs_data
 
     if st.session_state.get("jobs_data"):

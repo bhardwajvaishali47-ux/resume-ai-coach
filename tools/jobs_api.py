@@ -86,12 +86,15 @@ def search_jobs(
         print(f"Adzuna API error: {e}")
         return []
 
-def build_search_keywords(parsed_resume: dict, match_result: dict) -> str:
+def build_search_keywords(
+    parsed_resume: dict,
+    match_result: dict,
+    job_description: str = ""
+) -> str:
     """
     Uses Claude to intelligently extract the best job search
-    keywords from any resume profile.
-    Works for any professional background — PM, developer,
-    designer, data scientist, analyst, etc.
+    keywords using BOTH the resume and the target job description.
+    Finds jobs that match the user's skills AND their target role.
     """
     import os
     from anthropic import Anthropic
@@ -108,21 +111,30 @@ def build_search_keywords(parsed_resume: dict, match_result: dict) -> str:
         if role:
             recent_roles.append(f"{role} at {company}")
 
-    prompt = f"""You are a job search expert.
-Based on this person's experience and skills, what is the
-best 2-3 word job search keyword to find relevant jobs?
+    jd_context = ""
+    if job_description:
+        jd_context = f"""
+Target job description (first 200 chars):
+{job_description[:200]}"""
 
-Recent experience:
+    prompt = f"""You are a job search expert.
+Based on this person's experience AND their target role,
+what is the best 2-3 word job search keyword to find
+similar relevant jobs on a job board?
+
+Candidate experience:
 {chr(10).join(recent_roles)}
 
 Top skills: {', '.join(skills[:5])}
+{jd_context}
 
 Rules:
 - Return ONLY the keyword phrase — nothing else
 - Maximum 3 words
-- Use standard job title language recruiters use
-- Examples: "Product Manager", "Software Engineer",
-  "Data Scientist", "UX Designer", "DevOps Engineer"
+- Use standard job title language recruiters search for
+- Balance what the person HAS done with what they WANT
+- Examples: "Product Manager", "HR Director",
+  "Software Engineer", "Data Scientist", "UX Designer"
 
 Keyword:"""
 
@@ -134,7 +146,6 @@ Keyword:"""
 
     keyword = message.content[0].text.strip()
     keyword = keyword.replace('"', '').replace("'", "").strip()
-
     return keyword
 
     
@@ -142,22 +153,19 @@ Keyword:"""
 def get_jobs_for_profile(
     parsed_resume: dict,
     match_result: dict,
-    country: str = "in"
+    country: str = "in",
+    job_description: str = ""
 ) -> dict:
     """
     Main function called by the UI.
-    Builds keywords from profile and fetches matching jobs.
-
-    Input:
-        parsed_resume: from resume parser
-        match_result: from JD matcher
-        country: "in" for India, "gb" for UK
-
-    Output:
-        dictionary with keywords used and list of jobs found
+    Uses resume AND job description to find best matching jobs.
     """
 
-    keywords = build_search_keywords(parsed_resume, match_result)
+    keywords = build_search_keywords(
+        parsed_resume,
+        match_result,
+        job_description=job_description
+    )
     print(f"Searching Adzuna for: {keywords}")
 
     jobs = search_jobs(

@@ -20,19 +20,25 @@ system_message = """You are an expert recruitment consultant and career coach wi
 
 human_message = """Compare this resume against the job description  below.
 Analyse carefully:
-1. Which skills from the JD does the candidate have ?
-2. Which required skills are missing ?
-3. What are the candidate's strongest points for this role ?
-4. What are the gaps that would concern a recruiter ?
-5. Overall how strong is this application ?
+1. Which skills from the JD does the candidate have?
+2. Which required skills are missing?
+3. What are the candidate's strongest points for this role?
+4. What are the gaps that would concern a recruiter?
+5. Overall how strong is this application?
 
-Return a JSON object with exactly these keys :
-- match_score : a number from 0 to 100 (integer only)
-- matched_skills : list of skills candidate has that JD requires
-- missing_skills : list of required skills candidate is missing 
-- strenghts : list of 3 specific strengths for this exact role 
-- gaps : list of 3 specific gaps or concerns for this role
-- recommendation : one sentence honest advice for the candidate
+IMPORTANT RULES:
+- strengths must ALWAYS contain exactly 3 items — never empty
+- gaps must ALWAYS contain exactly 3 items — never empty
+- Every candidate has genuine strengths — find them even if match is low
+- match_score must be an integer between 0 and 100
+
+Return a JSON object with exactly these keys:
+- match_score: a number from 0 to 100 (integer only)
+- matched_skills: list of skills candidate has that JD requires
+- missing_skills: list of required skills candidate is missing
+- strengths: list of 3 specific strengths for this exact role
+- gaps: list of 3 specific gaps or concerns for this role
+- recommendation: one sentence honest advice for the candidate
 
 RESUME: {resume_text}
 
