@@ -7,6 +7,7 @@ from agent.career_coach import build_career_coach, chat_with_coach
 from chains.cover_letter import generate_cover_letter
 from tools.pdf_exporter import create_resume_pdf, create_analysis_report
 from chains.resume_enhancer import enhance_resume_with_chat, get_enhancement_summary
+from tools.jobs_api import get_jobs_for_profile
 
 load_dotenv()
 
@@ -181,6 +182,59 @@ if st.session_state.get("analysis_done"):
             file_name=st.session_state["report_file_name"],
             mime="application/pdf"
         )
+        
+        
+# LIVE JOBS SECTION
+if st.session_state.get("analysis_done"):
+    st.divider()
+    st.header("Live Job Listings For You")
+    st.markdown("Real job openings matched to your profile from across India.")
+
+    col_country1, col_country2 = st.columns([3, 1])
+
+    with col_country2:
+        country = st.selectbox(
+            "Country",
+            options=["in", "gb", "us"],
+            format_func=lambda x: {"in": "India", "gb": "UK", "us": "USA"}[x]
+        )
+
+    if st.button("Find Matching Jobs", type="secondary"):
+        with st.spinner("Searching live job listings..."):
+            result = st.session_state["result"]
+            jobs_data = get_jobs_for_profile(
+                result["parsed_resume"],
+                result["match_result"],
+                country=country
+            )
+            st.session_state["jobs_data"] = jobs_data
+
+    if st.session_state.get("jobs_data"):
+        jobs_data = st.session_state["jobs_data"]
+        jobs = jobs_data["jobs"]
+        keywords = jobs_data["keywords_used"]
+
+        st.caption(f"Searched for: '{keywords}' — Found {jobs_data['jobs_found']} listings")
+
+        if jobs:
+            for i, job in enumerate(jobs, 1):
+                with st.expander(f"{job['title']} — {job['company']} | {job['location']}"):
+                    col_a, col_b = st.columns(2)
+
+                    with col_a:
+                        st.markdown(f"**Company:** {job['company']}")
+                        st.markdown(f"**Location:** {job['location']}")
+                        st.markdown(f"**Salary:** {job['salary']}")
+                        st.markdown(f"**Posted:** {job['created']}")
+
+                    with col_b:
+                        st.markdown(f"**Description:**")
+                        st.markdown(job['description'])
+
+                    st.markdown(f"[Apply Now →]({job['apply_url']})") #[Apply Now →]({job['apply_url']})
+#Markdown link syntax. Creates a clickable link that opens Adzuna's apply page in a new tab. The user goes directly to the job application from your app.
+        else:
+            st.warning("No jobs found for your profile. Try a different country or run the analysis again.")
 
 
 # CHAT SECTION
