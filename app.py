@@ -1,15 +1,92 @@
 import streamlit as st
-import tempfile
 import os
+import uuid
+import requests
 from dotenv import load_dotenv
-from pipeline import analyze_resume
-from agent.career_coach import build_career_coach, chat_with_coach
-from chains.cover_letter import generate_cover_letter
 from tools.pdf_exporter import create_resume_pdf, create_analysis_report
 from chains.resume_enhancer import enhance_resume_with_chat, get_enhancement_summary
-from tools.jobs_api import get_jobs_for_profile
 
 load_dotenv()
+
+API_BASE_URL = "http://localhost:8000"
+
+def call_analyze_api(pdf_file, job_description: str) -> dict:
+    """
+    Calls FastAPI /analyze endpoint.
+    Sends PDF file and job description.
+    Returns complete analysis result.
+    """
+    files = {"file": (pdf_file.name, pdf_file.getvalue(), "application/pdf")}
+    data = {"job_description": job_description}
+    response = requests.post(f"{API_BASE_URL}/analyze", files=files, data=data)
+    response.raise_for_status()
+    return response.json()
+
+
+def call_cover_letter_api(
+    parsed_resume: dict,
+    job_description: str,
+    match_result: dict
+) -> str:
+    """
+    Calls FastAPI /cover-letter endpoint.
+    Returns generated cover letter as string.
+    """
+    payload = {
+        "parsed_resume": parsed_resume,
+        "job_description": job_description,
+        "match_result": match_result
+    }
+    response = requests.post(f"{API_BASE_URL}/cover-letter", json=payload)
+    response.raise_for_status()
+    return response.json()["cover_letter"]
+
+
+def call_chat_api(
+    message: str,
+    session_id: str,
+    parsed_resume: dict,
+    job_description: str,
+    match_result: dict
+) -> str:
+    """
+    Calls FastAPI /chat endpoint.
+    Sends message and session ID.
+    Returns agent response as string.
+    """
+    payload = {
+        "message": message,
+        "session_id": session_id,
+        "parsed_resume": parsed_resume,
+        "job_description": job_description,
+        "match_result": match_result
+    }
+    response = requests.post(f"{API_BASE_URL}/chat", json=payload)
+    response.raise_for_status()
+    return response.json()["response"]
+
+
+def call_jobs_api(
+    parsed_resume: dict,
+    match_result: dict,
+    job_description: str,
+    country: str
+) -> dict:
+    """
+    Calls FastAPI /jobs endpoint.
+    Returns live job listings matching the profile.
+    """
+    payload = {
+        "parsed_resume": parsed_resume,
+        "match_result": match_result,
+        "job_description": job_description,
+        "country": country
+    }
+    response = requests.post(f"{API_BASE_URL}/jobs", json=payload)
+    response.raise_for_status()
+    return response.json()
+
+
 
 st.set_page_config(
     page_title="AI Resume Coach",
@@ -53,19 +130,16 @@ if analyse_button and not st.session_state.get("analysis_done"):
     elif not job_description.strip():
         st.warning("Please paste a job description first.")
     else:
-        with st.spinner("Analysing your resume with Claude AI... This may take 20-30 seconds."):
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-                tmp_file.write(upload_file.getvalue())
-                tmp_path = tmp_file.name
-            result = analyze_resume(tmp_path, job_description)
-            os.unlink(tmp_path)
+     with st.spinner("Analysing your resume with Claude AI... This may take 20-30 seconds."):
+        result = call_analyze_api(upload_file, job_description)
 
-        if "error" in result:
-            st.error(result["error"])
-        else:
-            st.session_state["result"] = result
-            st.session_state["analysis_done"] = True
-            st.session_state["job_description"] = job_description
+    if "error" in result:
+        st.error(result["error"])
+    else:
+        st.session_state["result"] = result
+        st.session_state["analysis_done"] = True
+        st.session_state["job_description"] = job_description
+        st.session_state["session_id"] = str(uuid.uuid4())
 
 
 # RESULTS SECTION
@@ -127,14 +201,13 @@ if st.session_state.get("analysis_done"):
     st.markdown("Generate a personalised cover letter tailored to this specific role.")
 
     if st.button("Generate Cover Letter", type="secondary"):
-        with st.spinner("Writing your cover letter..."):
-            cover_letter = generate_cover_letter(
-                result["parsed_resume"],
-                st.session_state["job_description"],
-                result["match_result"]
-            )
-            st.session_state["cover_letter"] = cover_letter
-
+     with st.spinner("Writing your cover letter..."):
+        cover_letter = call_cover_letter_api(
+            result["parsed_resume"],
+            st.session_state["job_description"],
+            result["match_result"]
+        )
+        st.session_state["cover_letter"] = cover_letter
     if st.session_state.get("cover_letter"):
         st.text_area(
             "Your Cover Letter",
@@ -202,12 +275,13 @@ if st.session_state.get("analysis_done"):
     if st.button("Find Matching Jobs", type="secondary"):
         with st.spinner("Searching live job listings..."):
             result = st.session_state["result"]
-            jobs_data = get_jobs_for_profile(
+            jobs_data = call_jobs_api(
             result["parsed_resume"],
             result["match_result"],
-            country=country,
-            job_description=st.session_state.get("job_description", "")
+            st.session_state.get("job_description", ""),
+            country
 )
+
             st.session_state["jobs_data"] = jobs_data
 
     if st.session_state.get("jobs_data"):
@@ -238,21 +312,14 @@ if st.session_state.get("analysis_done"):
             st.warning("No jobs found for your profile. Try a different country or run the analysis again.")
 
 
+
 # CHAT SECTION
 if st.session_state.get("analysis_done"):
     st.divider()
     st.header("Chat with your AI Career Coach")
     st.markdown("Ask anything about your resume, request rewrites, or get specific advice.")
 
-    if "agent" not in st.session_state:
-        result = st.session_state["result"]
-        agent, history = build_career_coach(
-            result["parsed_resume"],
-            st.session_state["job_description"],
-            result["match_result"]
-        )
-        st.session_state["agent"] = agent
-        st.session_state["history"] = history
+    if "messages" not in st.session_state:
         st.session_state["messages"] = []
 
     for message in st.session_state["messages"]:
@@ -272,9 +339,13 @@ if st.session_state.get("analysis_done"):
 
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
-                response = chat_with_coach(
-                    st.session_state["agent"],
-                    user_input
+                result = st.session_state["result"]
+                response = call_chat_api(
+                    user_input,
+                    st.session_state.get("session_id", "default"),
+                    result["parsed_resume"],
+                    st.session_state["job_description"],
+                    result["match_result"]
                 )
             st.markdown(response)
 
@@ -282,7 +353,6 @@ if st.session_state.get("analysis_done"):
             "role": "assistant",
             "content": response
         })
-
 
 # ENHANCED RESUME DOWNLOAD SECTION
 if st.session_state.get("analysis_done"):
