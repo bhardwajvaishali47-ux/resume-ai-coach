@@ -1,7 +1,11 @@
 import streamlit as st
 import requests
+import os
+from dotenv import load_dotenv
 
-API_BASE_URL = "http://localhost:8000"
+load_dotenv()
+
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 
 
 def call_register_api(email: str, password: str, full_name: str) -> dict:
@@ -38,11 +42,29 @@ def show_login_page():
     using tabs — clean and simple.
     """
 
-    st.set_page_config(
-        page_title="AI Resume Coach — Login",
-        page_icon="📄",
-        layout="centered"
-    )
+    query_params = st.query_params
+    google_code = query_params.get("code")
+
+    if google_code:
+        with st.spinner("Completing Google login..."):
+            try:
+                response = requests.post(
+                    f"{API_BASE_URL}/auth/google/callback",
+                    params={"code": google_code}
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    st.session_state["token"] = data["access_token"]
+                    st.session_state["user_email"] = data["user_email"]
+                    st.session_state["user_name"] = data["user_name"]
+                    st.session_state["authenticated"] = True
+                    st.query_params.clear()
+                    st.rerun()
+                else:
+                    st.error("Google login failed. Please try again.")
+            except Exception as e:
+                st.error(f"Error: {str(e)}")
+        return
 
     st.markdown("""
         <div style='text-align: center; padding: 2rem 0 1rem 0'>
@@ -157,6 +179,21 @@ def show_login_page():
                     st.error(error_detail)
                 else:
                     st.error("Something went wrong. Please try again.")
+
+    st.divider()
+    st.subheader("Or continue with")
+
+    if st.button("🔵 Login with Google", use_container_width=True):
+        try:
+            response = requests.get(f"{API_BASE_URL}/auth/google/url")
+            google_url = response.json()["url"]
+            st.markdown(
+                f'<meta http-equiv="refresh" content="0;url={google_url}">',
+                unsafe_allow_html=True
+            )
+            st.info("Redirecting to Google login...")
+        except Exception as e:
+            st.error(f"Could not connect to Google: {str(e)}")
 
     st.divider()
     st.markdown("""

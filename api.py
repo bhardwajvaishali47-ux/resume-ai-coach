@@ -27,7 +27,7 @@ from auth.auth_handler import (
     verify_token,
     get_current_user_email
 )
-
+from auth.google_oauth import get_google_auth_url, exchange_code_for_token
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -388,6 +388,72 @@ def delete_session(session_id: str):
         del sessions[session_id]
         return {"message": f"Session {session_id} deleted"}
     return {"message": "Session not found"}
+
+# google authorization 
+@app.get("/auth/google/url")
+def google_auth_url():
+    """
+    Returns the Google OAuth authorization URL.
+    Streamlit redirects user to this URL when they
+    click Login with Google.
+    """
+    url = get_google_auth_url()
+    return {"url": url}
+
+
+@app.post("/auth/google/callback")
+async def google_callback(
+    code: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Handles the Google OAuth callback.
+    Called after user logs in with Google.
+    Finds or creates user in database.
+    Returns JWT token.
+    """
+    try:
+        user_info = await exchange_code_for_token(code)
+
+        email = user_info.get("email")
+        if not email:
+            raise HTTPException(
+                status_code=400,
+                detail="Could not get email from Google"
+            )
+
+        user = db.query(User).filter(User.email == email).first()
+
+        if not user:
+            user = User(
+                email=email,
+                full_name=user_info.get("full_name"),
+                google_id=user_info.get("google_id"),
+                profile_picture=user_info.get("profile_picture")
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+
+        token = create_access_token({"sub": user.email})
+
+        return TokenResponse(
+            access_token=token,
+            token_type="bearer",
+            user_email=user.email,
+            user_name=user.full_name or ""
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Google authentication failed: {str(e)}"
+        )
+
+
+
+
+
 
 
 if __name__ == "__main__":
