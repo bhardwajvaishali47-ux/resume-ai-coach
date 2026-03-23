@@ -67,9 +67,108 @@ def show_login_page():
         return
 
     st.markdown("""
-        <div style='text-align: center; padding: 2rem 0 1rem 0'>
-            <h1>📄 AI Resume Coach</h1>
-            <p style='color: grey; font-size: 1.1rem'>
+    <style>
+        /* Hide Streamlit default elements */
+        #MainMenu {visibility: hidden;}
+        footer {visibility: hidden;}
+        header {visibility: hidden;}
+
+        /* Page background */
+        .stApp {
+            background-color: #0e1117;
+        }
+
+        /* Center the login card */
+        .block-container {
+            max-width: 420px;
+            padding-top: 2rem;
+            margin: 0 auto;
+        }
+
+        /* Input fields */
+        .stTextInput > div > div > input {
+            background-color: #1a1a2e;
+            border: 1px solid #2d2d2d;
+            border-radius: 8px;
+            color: white;
+            padding: 0.75rem;
+        }
+
+        /* Primary button */
+        .stButton > button[kind="primary"] {
+            background-color: #FF4B4B;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 0.75rem 2rem;
+            font-weight: 600;
+            font-size: 1rem;
+            width: 100%;
+        }
+
+        .stButton > button[kind="primary"]:hover {
+            background-color: #e03e3e;
+            border: none;
+        }
+
+        /* Secondary button - Google login */
+        .stButton > button[kind="secondary"] {
+            background-color: transparent;
+            color: white;
+            border: 1px solid #2d2d2d;
+            border-radius: 8px;
+            padding: 0.75rem 2rem;
+            font-weight: 500;
+            width: 100%;
+        }
+
+        .stButton > button[kind="secondary"]:hover {
+            background-color: #1a1a2e;
+            border: 1px solid #FF4B4B;
+        }
+
+        /* Tab styling */
+        .stTabs [data-baseweb="tab-list"] {
+            background-color: #1a1a2e;
+            border-radius: 8px;
+            padding: 4px;
+        }
+
+        .stTabs [data-baseweb="tab"] {
+            border-radius: 6px;
+            color: #888888;
+            font-weight: 500;
+        }
+
+        .stTabs [aria-selected="true"] {
+            background-color: #FF4B4B;
+            color: white;
+        }
+
+        /* Form container */
+        .stForm {
+            background-color: #1a1a2e;
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid #2d2d2d;
+        }
+
+        /* Divider text */
+        hr {
+            border-color: #2d2d2d;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+
+    st.markdown("""
+        <div style='text-align: center; padding: 1.5rem 0 1rem 0'>
+            <div style='font-size: 2.5rem; margin-bottom: 0.5rem'>📄</div>
+            <h2 style='color: white; font-size: 1.8rem; 
+                       font-weight: 700; margin: 0'>
+                AI Resume Coach
+            </h2>
+            <p style='color: #888888; font-size: 0.95rem; margin-top: 0.5rem'>
                 Your personal AI-powered career coach
             </p>
         </div>

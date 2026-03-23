@@ -13,3 +13,4 @@ sqlalchemy
 google-auth
 google-auth-oauthlib
 httpx
+plotly
