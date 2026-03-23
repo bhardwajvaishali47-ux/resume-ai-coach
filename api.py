@@ -345,6 +345,43 @@ def jobs(request: JobsRequest):
 
 
 @app.delete("/session/{session_id}")
+
+@app.post("/enhance-resume")
+def enhance_resume_endpoint(request: dict):
+    """Extract improved bullets from chat and return enhanced resume as PDF."""
+    import base64
+    import tempfile
+    import os
+    from chains.resume_enhancer import enhance_resume_with_chat, get_enhancement_summary
+    from tools.pdf_exporter import create_resume_pdf
+
+    parsed_resume = request.get("parsed_resume", {})
+    chat_messages = request.get("chat_messages", [])
+
+    # Merge rewritten bullets from chat into resume
+    enhanced = enhance_resume_with_chat(parsed_resume, chat_messages)
+    summary = get_enhancement_summary(parsed_resume, enhanced)
+
+    # Write PDF to temp file, read bytes, delete file
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+        tmp_path = tmp.name
+
+    create_resume_pdf(enhanced, tmp_path)
+
+    with open(tmp_path, "rb") as f:
+        pdf_bytes = f.read()
+
+    os.unlink(tmp_path)
+
+    pdf_b64 = base64.b64encode(pdf_bytes).decode("utf-8")
+
+    return {
+        "enhanced_resume": enhanced,
+        "summary": summary,
+        "pdf_base64": pdf_b64
+    }
+    
+    
 def delete_session(session_id: str):
     """Deletes a chat session from memory."""
     if session_id in sessions:
