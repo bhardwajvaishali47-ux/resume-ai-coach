@@ -3,4 +3,3 @@ venv_ai/
 __pycache__/
 *.pyc
 .DS_Store
-vectorstore/faiss_index/
