@@ -122,7 +122,7 @@ def create_resume_pdf(parsed_resume: dict, output_path: str) -> str:
         thickness=1.5,
         color=colors.HexColor("#1a1a2e")
     ))
-
+    story.append(Spacer(1, 10))
     summary = parsed_resume.get("summary", "")
     if summary:
         story.append(Paragraph("PROFESSIONAL SUMMARY", section_header_style))
@@ -131,7 +131,7 @@ def create_resume_pdf(parsed_resume: dict, output_path: str) -> str:
             thickness=0.5,
             color=colors.HexColor("#cccccc")
         ))
-        story.append(Spacer(1, 4)) #Spacer(width, height)An invisible gap. Spacer(1, 4) adds 4 points of vertical space. Used to create breathing room between sections.
+        story.append(Spacer(1, 8)) #Spacer(width, height)An invisible gap. Spacer(1, 4) adds 4 points of vertical space. Used to create breathing room between sections.
         story.append(Paragraph(summary, body_style))
 
     skills = parsed_resume.get("skills", [])
@@ -257,11 +257,11 @@ def create_analysis_report(
     section_header_style = ParagraphStyle(
         "SectionHeader",
         parent=styles["Normal"],
-        fontSize=12,
+        fontSize=11,
         fontName="Helvetica-Bold",
         textColor=colors.HexColor("#1a1a2e"),
-        spaceBefore=14,
-        spaceAfter=6
+        spaceBefore=18,
+        spaceAfter=4
     )
 
     score_style = ParagraphStyle(
