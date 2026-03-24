@@ -1,0 +1,11 @@
+venv_ai/
+vectorstore/faiss_index/
+*.db
+__pycache__/
+*.pyc
+.DS_Store
+app.py
+login.py
+day1_raw_api.py
+day1_langchain.py
+resume-frontend/
